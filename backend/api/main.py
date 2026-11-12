@@ -45,7 +45,14 @@ def create_app(service: MarketService | None = None, settings: Settings | None =
 
             # one journal per data source, so free-feed and Twelve Data results never mix
             folder = "journal" if settings.resolved_provider == "xaus" else f"journal_{settings.resolved_provider}"
-            service.journal = Journal(service.provider, settings.data_dir / folder)
+            start_at = None
+            if settings.journal_start:
+                from datetime import datetime, timezone
+
+                start_at = datetime.fromisoformat(settings.journal_start.replace("Z", "+00:00"))
+                if start_at.tzinfo is None:
+                    start_at = start_at.replace(tzinfo=timezone.utc)
+            service.journal = Journal(service.provider, settings.data_dir / folder, start_at=start_at)
             stop = start_background(service.journal)
         yield
         if stop:

@@ -55,6 +55,9 @@ class Settings:
     app_username: str = "goldpulse"
     app_password: str | None = field(default=None, repr=False)   # empty = no login (home PC)
     data_dir: Path = PROJECT_ROOT                                   # cloud: the persistent disk
+    # Fixed journal start (ISO time). Lets a free cloud server, which forgets its files when it
+    # sleeps, rebuild the same journal from price history every time it wakes up.
+    journal_start: str | None = None
 
     @property
     def resolved_provider(self) -> str:
@@ -83,4 +86,5 @@ def load_settings() -> Settings:
         app_username=_str("APP_USERNAME", "goldpulse") or "goldpulse",
         app_password=_str("APP_PASSWORD"),
         data_dir=Path(_str("DATA_DIR") or PROJECT_ROOT),
+        journal_start=_str("JOURNAL_START"),
     )
