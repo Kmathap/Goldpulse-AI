@@ -46,8 +46,12 @@ header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:s
 .tabs button{font:600 12px var(--sans);color:var(--muted);background:transparent;border:1px solid var(--line);border-radius:6px;padding:4px 10px;cursor:pointer}
 .tabs button.on{color:#111;background:var(--gold);border-color:var(--gold)}
 .tabs button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
-#chart{height:430px;width:100%;position:relative}
-@media (max-width:600px){#chart{height:320px}.price-main .big{font-size:32px}}
+#chart,#tvchart{height:430px;width:100%;position:relative}
+@media (max-width:600px){#chart,#tvchart{height:380px}.price-main .big{font-size:32px}}
+.modes{display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap}
+.modes button{font:600 12px var(--sans);color:var(--muted);background:transparent;border:1px solid var(--line);border-radius:6px;padding:5px 12px;cursor:pointer}
+.modes button.on{color:#111;background:var(--gold);border-color:var(--gold)}
+.hidden{display:none!important}
 .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-bottom:6px}
 .legend i{display:inline-block;width:16px;height:2px;vertical-align:middle;margin-right:5px}
 .overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--down);font-weight:700;letter-spacing:.06em;background:rgba(11,13,16,.85);z-index:5;text-align:center;padding:20px}
@@ -201,6 +205,15 @@ ul.ev{margin:4px 0 10px;padding-left:18px;font-size:13px} ul.ev li{margin:2px 0}
         <span>Price chart · times in IST</span>
         <span class="tabs" id="tfTabs" role="tablist" aria-label="Chart timeframe"></span>
       </h2>
+      <div class="modes" id="chartModes">
+        <button data-mode="live" class="on">⚡ Live chart (real-time)</button>
+        <button data-mode="gp">GoldPulse chart (levels · delayed)</button>
+      </div>
+      <div id="liveBox">
+        <div class="legend"><span id="liveNote">Real-time XAUUSD candles from TradingView (OANDA spot). Use the “≈ Spot” levels from the trade plan on this chart.</span></div>
+        <div id="tvchart"></div>
+      </div>
+      <div id="gpBox" class="hidden">
       <div class="legend">
         <span><i style="background:var(--gold)"></i>EMA 20</span>
         <span><i style="background:var(--blue)"></i>EMA 50</span>
@@ -211,6 +224,7 @@ ul.ev{margin:4px 0 10px;padding-left:18px;font-size:13px} ul.ev li{margin:2px 0}
         <span id="chartNote"></span>
       </div>
       <div id="chart"></div>
+      </div>
     </div>
   </section>
 
@@ -367,12 +381,43 @@ async function loadChart(fit = false) {
   }
 }
 
+// ---------------------------------------------------------------- live chart (TradingView widget, real-time)
+const TV_INTERVAL = {M5: "5", M15: "15", M30: "30", H1: "60", H4: "240", D1: "D"};
+let chartMode = "live", tvShownTf = null;
+function loadLiveChart() {
+  if (chartMode !== "live" || tvShownTf === tf) return;
+  tvShownTf = tf;
+  const box = $("tvchart");
+  box.innerHTML = '<div class="tradingview-widget-container" style="height:100%;width:100%"><div class="tradingview-widget-container__widget" style="height:100%;width:100%"></div></div>';
+  const sc = document.createElement("script");
+  sc.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
+  sc.async = true;
+  sc.onerror = () => { box.innerHTML = '<div class="overlay">Live chart could not load (needs internet access to tradingview.com).</div>'; tvShownTf = null; };
+  sc.textContent = JSON.stringify({
+    autosize: true, symbol: "OANDA:XAUUSD", interval: TV_INTERVAL[tf] || "5",
+    timezone: "Asia/Kolkata", theme: "dark", style: "1", locale: "en",
+    backgroundColor: "#0b0d10", hide_side_toolbar: true, allow_symbol_change: false,
+    save_image: false, calendar: false, support_host: "https://www.tradingview.com",
+    studies: ["STD;EMA"]
+  });
+  box.firstChild.appendChild(sc);
+}
+function setChartMode(m) {
+  chartMode = m;
+  for (const b of $("chartModes").children) b.classList.toggle("on", b.dataset.mode === m);
+  $("liveBox").classList.toggle("hidden", m !== "live");
+  $("gpBox").classList.toggle("hidden", m !== "gp");
+  if (m === "live") loadLiveChart();
+  else loadChart(true);
+}
+$("chartModes").onclick = ev => { const m = ev.target.dataset.mode; if (m && m !== chartMode) setChartMode(m); };
+
 function buildTabs() {
   const box = $("tfTabs");
   box.innerHTML = TFS.map(t => `<button role="tab" aria-selected="${t === tf}" class="${t === tf ? "on" : ""}" data-tf="${t}">${t}</button>`).join("");
   box.onclick = ev => {
     const t = ev.target.dataset.tf; if (!t || t === tf) return;
-    tf = t; buildTabs(); loadChart(true);
+    tf = t; buildTabs(); if (chartMode === "live") loadLiveChart(); else loadChart(true);
   };
 }
 
@@ -620,8 +665,10 @@ async function loadJournal() {
 }
 
 // ---------------------------------------------------------------- start + refresh
+tf = "M5";
 buildTabs();
 initChart();
+loadLiveChart();
 loadPrice().then(() => loadChart(true));
 loadTechnicals().then(loadAnalysis);
 loadSessions();
