@@ -1,0 +1,29 @@
+# GoldPulse AI – online version on Render (works with your PC switched off).
+# Render reads this file when you choose  New -> Blueprint  and pick this repository.
+services:
+  - type: web
+    name: goldpulse-ai
+    runtime: python
+    plan: starter            # always on (the free plan sleeps and cannot keep the journal)
+    region: singapore        # closest Render region to India
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m uvicorn backend.api.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /healthz
+    autoDeploy: true
+    disk:
+      name: goldpulse-data
+      mountPath: /var/data   # the signal journal is saved here and survives restarts
+      sizeGB: 1
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.1
+      - key: DATA_DIR
+        value: /var/data
+      - key: MARKET_DATA_PROVIDER
+        value: auto
+      - key: APP_USERNAME
+        value: goldpulse
+      - key: APP_PASSWORD     # you type this yourself in Render – never put it in this file
+        sync: false
+      - key: TWELVEDATA_API_KEY   # leave empty for the free feed; paste your key later in Render
+        sync: false

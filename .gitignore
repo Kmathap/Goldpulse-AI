@@ -1,0 +1,10 @@
+.env
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+journal/
+journal_*/
+# keep only the strategy-lab summaries (the dashboard's backtest banner reads them)
+backtest_results/*
+!backtest_results/lab_summary_*.json

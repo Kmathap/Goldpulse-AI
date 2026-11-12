@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GoldPulse AI – Live Gold Market Intelligence</title>
+<script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+:root{
+  --bg:#0b0d10; --panel:#12161b; --panel2:#171c22; --line:#232a32; --ink:#e7e3d8; --muted:#8a919a;
+  --gold:#d9b25b; --gold-dim:#5c4b26; --up:#2fbf7a; --down:#ef5b5b; --warn:#e8a33d; --blue:#5b9cf0; --violet:#a07be0;
+  --mono:"Cascadia Mono",Consolas,"SF Mono",Menlo,monospace;
+  --sans:"Segoe UI",system-ui,-apple-system,Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 var(--sans)}
+.wrap{max-width:1360px;margin:0 auto;padding:16px 18px 40px;display:grid;gap:14px}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)} .up{color:var(--up)} .down{color:var(--down)} .gold{color:var(--gold)}
+header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:12px}
+.brand{display:flex;align-items:baseline;gap:10px}
+.brand h1{margin:0;font-size:22px;letter-spacing:.04em;font-weight:700}
+.brand h1 b{color:var(--gold)}
+.brand span{color:var(--muted);font-size:12px;letter-spacing:.08em;text-transform:uppercase}
+.meta{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:12px}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-weight:700;font-size:11px;letter-spacing:.08em;border:1px solid var(--line)}
+.pill::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.pill.LIVE{color:var(--up);border-color:#1d4a35} .pill.STALE{color:var(--warn);border-color:#5a4220}
+.pill.MARKET_CLOSED{color:var(--muted)} .pill.DATA_UNAVAILABLE{color:var(--down);border-color:#5a2525}
+.pill.OPEN{color:var(--up);border-color:#1d4a35} .pill.CLOSED{color:var(--muted)}
+.warn{border:1px solid #5a4220;background:#1d170c;color:#f0cf96;border-radius:8px;padding:9px 12px;font-size:13px;display:grid;gap:4px}
+.warn:empty{display:none}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;min-width:0}
+.panel h2{margin:0 0 10px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.top{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,2fr);gap:14px}
+@media (max-width:980px){.top{grid-template-columns:1fr}}
+.price-main{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.price-main .big{font-size:40px;font-weight:700;letter-spacing:-.01em}
+.chg{font-size:16px;font-weight:600}
+.kv{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-top:12px}
+.kv div{background:var(--panel2);padding:8px 10px}
+.kv label{display:block;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.kv .num{font-size:15px}
+.src{margin-top:10px;font-size:12px;color:var(--muted);display:grid;gap:2px}
+.tabs{display:flex;gap:4px;flex-wrap:wrap}
+.tabs button{font:600 12px var(--sans);color:var(--muted);background:transparent;border:1px solid var(--line);border-radius:6px;padding:4px 10px;cursor:pointer}
+.tabs button.on{color:#111;background:var(--gold);border-color:var(--gold)}
+.tabs button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+#chart{height:430px;width:100%;position:relative}
+@media (max-width:600px){#chart{height:320px}.price-main .big{font-size:32px}}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-bottom:6px}
+.legend i{display:inline-block;width:16px;height:2px;vertical-align:middle;margin-right:5px}
+.overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--down);font-weight:700;letter-spacing:.06em;background:rgba(11,13,16,.85);z-index:5;text-align:center;padding:20px}
+.tablewrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px;min-width:860px}
+th{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);text-align:right;font-weight:700;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+td{padding:7px 8px;border-bottom:1px solid #1a2027;text-align:right;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+td.tf{font-weight:700;color:var(--gold)}
+.sess{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+@media (max-width:980px){.sess{grid-template-columns:1fr}}
+.sess .panel h3{margin:0;font-size:15px}
+.sess .hours{font-size:12px;color:var(--muted);margin:2px 0 10px}
+.dir{font-weight:700;letter-spacing:.06em}
+.sgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 14px;font-size:13px}
+.sgrid span:nth-child(odd){color:var(--muted)}
+.sgrid span:nth-child(even){text-align:right;font-family:var(--mono)}
+footer{color:var(--muted);font-size:12px;border-top:1px solid var(--line);padding-top:12px;display:grid;gap:4px}
+.skel{color:var(--muted)}
+@media (max-width:980px){.jgrid{grid-template-columns:1fr!important}}
+.news{display:grid;gap:0}
+.nitem{padding:10px 2px;border-bottom:1px solid #1a2027;display:grid;gap:3px}
+.nitem:last-child{border-bottom:0}
+.nitem a{color:var(--ink);text-decoration:none;font-weight:600;font-size:14px}
+.nitem a:hover{color:var(--gold);text-decoration:underline}
+.nmeta{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:11.5px;color:var(--muted)}
+.chip{font-size:10.5px;font-weight:700;letter-spacing:.04em;padding:1px 6px;border-radius:4px;border:1px solid var(--line);color:var(--muted)}
+.chip.sb,.chip.mb{color:var(--up);border-color:#1d4a35} .chip.sb{background:#123524}
+.chip.sbe,.chip.mbe{color:var(--down);border-color:#5a2525} .chip.sbe{background:#3a1717}
+.chip.High{color:#111;background:var(--gold);border-color:var(--gold)} .chip.Medium{color:var(--gold);border-color:var(--gold-dim)}
+.nexp{font-size:12.5px;color:#b9b3a6}
+.newsfilter{display:flex;gap:4px;flex-wrap:wrap}
+.newsfilter button{font:600 11px var(--sans);color:var(--muted);background:transparent;border:1px solid var(--line);border-radius:6px;padding:3px 8px;cursor:pointer}
+.newsfilter button.on{color:#111;background:var(--gold);border-color:var(--gold)}
+
+.verdict-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:14px}
+@media (max-width:980px){.verdict-row{grid-template-columns:1fr}}
+.big-verdict{font-size:34px;font-weight:800;letter-spacing:.04em;line-height:1}
+.big-verdict.BULLISH,.act.BUY{color:var(--up)} .big-verdict.BEARISH,.act.SELL{color:var(--down)} .big-verdict.NEUTRAL,.act.NO{color:var(--warn)}
+.act{font-size:26px;font-weight:800;letter-spacing:.03em}
+.bar{height:8px;background:#232a32;border-radius:99px;overflow:hidden;margin:6px 0 2px}
+.bar i{display:block;height:100%;background:var(--gold)}
+ul.ev{margin:4px 0 10px;padding-left:18px;font-size:13px} ul.ev li{margin:2px 0}
+.sub{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-top:10px}
+.lvls{width:100%;border-collapse:collapse;font-size:13.5px;min-width:0;margin-top:8px}
+.lvls td,.lvls th{padding:6px 8px;border-bottom:1px solid #1a2027;text-align:right}
+.lvls td:first-child,.lvls th:first-child{text-align:left;color:var(--muted)}
+.tag{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:5px;letter-spacing:.05em}
+.tag.BULLISH{background:#123524;color:var(--up)} .tag.BEARISH{background:#3a1717;color:var(--down)} .tag.NEUTRAL{background:#2a2414;color:var(--warn)}
+
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand"><h1>GOLD<b>PULSE</b> AI</h1><span>Live Gold Market Intelligence · XAUUSD</span></div>
+    <div class="meta">
+      <span id="status" class="pill DATA_UNAVAILABLE">LOADING</span>
+      <span class="muted">Updated <span id="updated" class="num">–</span></span>
+      <span class="muted" id="provider">–</span>
+    </div>
+  </header>
+
+  <div id="warnings" class="warn" role="status"></div>
+
+
+  <section class="verdict-row" aria-label="Analysis">
+    <div class="panel">
+      <h2><span>Trend engine · market direction</span><span class="muted" id="vEngineTime" style="text-transform:none;letter-spacing:0;font-weight:400"></span></h2>
+      <div style="display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap">
+        <div class="big-verdict NEUTRAL" id="vDir">–</div>
+        <div><div class="muted" style="font-size:12px">Trend strength</div><div id="vStrength" style="font-weight:700">–</div></div>
+        <div style="min-width:160px;flex:1"><div class="muted" style="font-size:12px">Confidence <span id="vConf" class="num" style="color:var(--ink);font-weight:700">–</span></div>
+          <div class="bar"><i id="vConfBar" style="width:0"></i></div>
+          <div class="muted" style="font-size:11px">Evidence agreement, not probability of profit</div></div>
+      </div>
+      <div style="font-size:13px;margin-top:10px">Technical verdict above · News sentiment: <span id="vNews" class="tag NEUTRAL">–</span></div>
+      <div class="sub">Why</div><ul class="ev" id="vReasons"></ul>
+      <div class="sub">Evidence against / risks</div><ul class="ev" id="vAgainst"></ul>
+      <div class="sub">What would invalidate this</div><ul class="ev" id="vInval"></ul>
+      <div class="sub">Scenarios</div><ul class="ev" id="vScen"></ul>
+    </div>
+    <div class="panel">
+      <h2><span>Trade plan · when to buy / sell</span><span class="muted" style="text-transform:none;letter-spacing:0;font-weight:400">Educational – not financial advice</span></h2>
+      <div id="pBacktest" class="warn" style="margin-bottom:10px;display:none"></div>
+      <div class="act NO" id="pAction">–</div>
+      <div id="pHeadline" style="font-weight:600;margin-top:2px"></div>
+      <div id="pReason" class="muted" style="font-size:13px;margin-top:4px"></div>
+      <div id="pTiming" style="font-size:13px;margin-top:6px;color:var(--gold)"></div>
+      <div id="pJournal" style="font-size:13px;margin-top:8px"></div>
+      <div id="pSetup"></div>
+      <div class="sub" id="pEnterH">Enter only when</div><ul class="ev" id="pEnter"></ul>
+      <div class="sub">Avoid the trade when</div><ul class="ev" id="pAvoid"></ul>
+    </div>
+  </section>
+
+  <section class="panel" aria-label="Signal journal">
+    <h2><span>Signal journal · live record of strategy A</span><span class="muted" id="jMeta" style="text-transform:none;letter-spacing:0;font-weight:400"></span></h2>
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:14px" class="jgrid">
+      <div>
+        <div id="jState" style="font-size:15px;font-weight:700">–</div>
+        <div id="jStateDetail" class="muted" style="font-size:13px;margin-top:4px"></div>
+        <div class="kv" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+          <div><label>Completed trades</label><span class="num" id="jN">–</span></div>
+          <div><label>Win rate</label><span class="num" id="jWin">–</span></div>
+          <div><label>Avg R / trade</label><span class="num" id="jAvg">–</span></div>
+          <div><label>Total R</label><span class="num" id="jTot">–</span></div>
+          <div><label>Profit factor</label><span class="num" id="jPf">–</span></div>
+          <div><label>Max drawdown</label><span class="num" id="jDd">–</span></div>
+        </div>
+        <div class="muted" style="font-size:12px;margin-top:8px" id="jGoal"></div>
+      </div>
+      <div class="tablewrap">
+        <table class="lvls" style="min-width:520px"><thead><tr><th>Signal (IST)</th><th>Side</th><th>Entry</th><th>Stop</th><th>Target</th><th>Result</th><th>R</th></tr></thead>
+          <tbody id="jTrades"><tr><td colspan="7" class="muted">No completed trades yet.</td></tr></tbody></table>
+      </div>
+    </div>
+  </section>
+  <section class="top">
+    <div class="panel" aria-label="Price">
+      <h2>XAUUSD · Live spot <span class="muted" id="statusReason" style="text-transform:none;letter-spacing:0;font-weight:400"></span></h2>
+      <div class="price-main">
+        <span class="big num" id="price">–</span>
+        <span class="muted" style="font-size:12px">USD/oz · live spot</span>
+      </div>
+      <div style="font-size:13px;margin-top:2px">
+        <span class="muted">Chart series</span> <span class="num" id="chartPx">–</span>
+        <span class="chg num" id="change" style="font-size:13px">–</span>
+        <span class="muted" style="font-size:12px">vs its previous daily close</span>
+      </div>
+      <div class="kv">
+        <div><label>Day high · chart</label><span class="num" id="dHigh">–</span></div>
+        <div><label>Day low · chart</label><span class="num" id="dLow">–</span></div>
+        <div><label>Prev. close · chart</label><span class="num" id="prevClose">–</span></div>
+        <div><label>Chart vs spot</label><span class="num" id="basis">–</span></div>
+        <div><label>Chart feed</label><span id="chartFeed">–</span></div>
+        <div><label>Volatility</label><span id="volRegime">–</span></div>
+        <div><label>ATR 14 · H1</label><span class="num" id="atr">–</span></div>
+        <div><label>Spot age</label><span class="num" id="spotAge">–</span></div>
+        <div><label>Trend</label><span id="trend">–</span></div>
+      </div>
+      <div class="src">
+        <span>Spot: <span id="spotSrc">–</span> · as of <span class="num" id="spotTime">–</span></span>
+        <span>Chart: <span id="chartSrc">–</span> · newest point <span class="num" id="chartTime">–</span></span>
+      </div>
+    </div>
+
+    <div class="panel" aria-label="Chart">
+      <h2>
+        <span>Price chart · times in IST</span>
+        <span class="tabs" id="tfTabs" role="tablist" aria-label="Chart timeframe"></span>
+      </h2>
+      <div class="legend">
+        <span><i style="background:var(--gold)"></i>EMA 20</span>
+        <span><i style="background:var(--blue)"></i>EMA 50</span>
+        <span><i style="background:var(--violet)"></i>EMA 200</span>
+        <span><i style="background:var(--ink);height:0;border-top:1px dashed var(--ink)"></i>Live spot</span>
+        <span><i style="background:#2fbf7a;height:0;border-top:1px dotted #2fbf7a"></i>Support</span>
+        <span><i style="background:#ef5b5b;height:0;border-top:1px dotted #ef5b5b"></i>Resistance</span>
+        <span id="chartNote"></span>
+      </div>
+      <div id="chart"></div>
+    </div>
+  </section>
+
+
+  <section class="panel" aria-label="Live gold news">
+    <h2>
+      <span>Live gold news · impact on XAUUSD</span>
+      <span class="newsfilter" id="newsFilter">
+        <button data-f="all" class="on">All</button><button data-f="High">High impact</button>
+        <button data-f="bull">Bullish</button><button data-f="bear">Bearish</button>
+      </span>
+    </h2>
+    <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:baseline;margin-bottom:6px">
+      <div>News sentiment (24 h): <span id="nSent" class="tag NEUTRAL">–</span> <span class="muted num" id="nScore"></span></div>
+      <div class="muted" style="font-size:12px" id="nCounts"></div>
+      <div class="muted" style="font-size:12px" id="nUpdated"></div>
+    </div>
+    <div class="muted" style="font-size:11.5px" id="nMethod"></div>
+    <div class="news" id="newsList"><div class="skel" style="padding:10px 0">Loading news…</div></div>
+  </section>
+  <section class="panel" aria-label="Multi-timeframe indicators">
+    <h2><span>Multi-timeframe indicators · closed candles only</span><span class="muted" style="text-transform:none;letter-spacing:0;font-weight:400">Trend score −100…+100 per timeframe</span></h2>
+    <div class="tablewrap">
+      <table>
+        <thead><tr>
+          <th>TF</th><th>Trend</th><th>Structure</th><th>Close</th><th>vs EMA 20</th><th>vs EMA 50</th><th>vs EMA 200</th><th>RSI 14</th>
+          <th>MACD hist</th><th>ADX 14</th><th>+DI / −DI</th><th>BB %B</th><th>ATR 14</th><th>Candle closed (IST)</th>
+        </tr></thead>
+        <tbody id="mtf"><tr><td colspan="14" class="skel">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section aria-label="Market sessions">
+    <div class="panel" style="padding-bottom:6px;margin-bottom:14px">
+      <h2 style="margin:0"><span>Global market sessions · IST</span><span class="muted" id="sessNote" style="text-transform:none;letter-spacing:0;font-weight:400"></span></h2>
+    </div>
+    <div class="sess" id="sessions"></div>
+  </section>
+
+  <footer>
+    <span><b>Data:</b> <span id="footProvider">–</span>. Spot is an indicative mid-market reference rate, not a broker's tradable bid/ask. The chart series may be delayed and futures-based; the app measures and shows both.</span>
+    <span>Read-only analysis tool. It places no trades and does not guarantee any outcome. Not financial advice.</span>
+  </footer>
+</div>
+
+<script>
+const TFS = ["M5","M15","M30","H1","H4","D1"];
+const IST_OFFSET = 19800;            // seconds; the chart axis shows IST
+let tf = "H1", chart, candleSeries, ema = {}, spotLine = null, lastSpot = null;
+
+const $ = id => document.getElementById(id);
+const fmt = (v, d = 2) => v === null || v === undefined ? "–" : Number(v).toLocaleString("en-US", {minimumFractionDigits: d, maximumFractionDigits: d});
+const signed = (v, d = 2) => v === null || v === undefined ? "–" : (v > 0 ? "+" : "") + fmt(v, d);
+const cls = v => v > 0 ? "up" : v < 0 ? "down" : "";
+const shortIst = s => s ? s.replace(/^\d+ \w+ \d{4}, /, "").replace(" IST", "") : "–";
+
+async function getJSON(url) {
+  const r = await fetch(url, {cache: "no-store"});
+  let body = null;
+  try { body = await r.json(); } catch (e) { /* non-JSON */ }
+  if (!r.ok) throw new Error((body && (body.status_reason || body.detail)) || `HTTP ${r.status}`);
+  return body;
+}
+
+function setStatus(status, reason) {
+  const el = $("status");
+  el.className = "pill " + status;
+  el.textContent = status.replace("_", " ");
+  $("statusReason").textContent = reason || "";
+}
+
+// ---------------------------------------------------------------- price
+async function loadPrice() {
+  try {
+    const p = await getJSON("/api/price");
+    setStatus(p.status, p.status_reason);
+    $("updated").textContent = shortIst(p.fetched_at_ist) + " IST";
+    $("provider").textContent = p.provider;
+    $("footProvider").textContent = `${p.provider} (${p.provider_cost})`;
+    $("price").textContent = fmt(p.price);
+    $("change").innerHTML = `<span class="${cls(p.change)}">${signed(p.change)} (${signed(p.change_pct, 2)}%)</span>`;
+    $("dHigh").textContent = fmt(p.daily_high);
+    $("dLow").textContent = fmt(p.daily_low);
+    $("prevClose").textContent = fmt(p.previous_close);
+    $("chartPx").textContent = fmt(p.chart.price);
+    $("basis").innerHTML = `<span class="${Math.abs(p.chart.basis_vs_spot_pct || 0) > 0.25 ? "down" : ""}">${signed(p.chart.basis_vs_spot)} (${signed(p.chart.basis_vs_spot_pct, 2)}%)</span>`;
+    const delayed = (p.chart.feed || "").startsWith("delayed");
+    $("chartFeed").innerHTML = delayed ? `<span style="color:var(--warn)">Delayed ~${Math.round(p.chart.delay_minutes)} min</span>` : `<span class="up">Near real-time</span>`;
+    const reg = p.volatility.regime;
+    $("volRegime").innerHTML = reg ? `<span class="${reg === "HIGH" ? "down" : reg === "LOW" ? "muted" : ""}">${reg}</span> <span class="muted num" style="font-size:12px">${fmt(p.volatility.atr_vs_100h_median)}×</span>` : "–";
+    $("atr").textContent = p.volatility.atr14_h1 !== null ? `${fmt(p.volatility.atr14_h1)} (${fmt(p.volatility.atr14_h1_pct_of_price, 2)}%)` : "–";
+    $("spotSrc").textContent = p.spot.source || "unavailable";
+    $("spotTime").textContent = p.spot.time_ist ? `${shortIst(p.spot.time_ist)} IST (${Math.round(p.spot.age_seconds)} s ago)` : "–";
+    $("chartSrc").textContent = p.chart.source;
+    $("chartTime").textContent = shortIst(p.chart.last_point_ist) + " IST";
+    $("warnings").innerHTML = (p.warnings || []).map(w => `<span>⚠ ${w}</span>`).join("");
+    $("spotAge").textContent = p.spot.age_seconds !== null ? `${Math.round(p.spot.age_seconds)} s` : "–";
+    lastSpot = p.spot.price;
+    drawSpotLine();
+  } catch (e) {
+    setStatus("DATA_UNAVAILABLE", e.message);
+    $("price").textContent = "DATA UNAVAILABLE";
+    for (const id of ["spotAge","change","dHigh","dLow","prevClose","chartPx","basis","chartFeed","volRegime","atr"]) $(id).textContent = "–";
+    $("warnings").innerHTML = `<span>⚠ ${e.message}</span>`;
+    lastSpot = null; drawSpotLine();
+  }
+}
+
+// ---------------------------------------------------------------- chart
+function initChart() {
+  const el = $("chart");
+  if (!window.LightweightCharts) {
+    el.innerHTML = `<div class="overlay">Chart library could not load (needs internet access to unpkg.com).</div>`;
+    return;
+  }
+  chart = LightweightCharts.createChart(el, {
+    autoSize: true,
+    layout: {background: {color: "#12161b"}, textColor: "#8a919a", fontFamily: "Segoe UI, system-ui, sans-serif"},
+    grid: {vertLines: {color: "#1a2027"}, horzLines: {color: "#1a2027"}},
+    rightPriceScale: {borderColor: "#232a32"},
+    timeScale: {borderColor: "#232a32", timeVisible: true, secondsVisible: false},
+    crosshair: {mode: 0},
+  });
+  candleSeries = chart.addCandlestickSeries({upColor: "#2fbf7a", downColor: "#ef5b5b", borderVisible: false, wickUpColor: "#2fbf7a", wickDownColor: "#ef5b5b"});
+  const line = color => chart.addLineSeries({color, lineWidth: 1.5, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false});
+  ema.ema20 = line("#d9b25b"); ema.ema50 = line("#5b9cf0"); ema.ema200 = line("#a07be0");
+}
+
+function drawSpotLine() {
+  if (!candleSeries) return;
+  if (spotLine) { candleSeries.removePriceLine(spotLine); spotLine = null; }
+  if (lastSpot) spotLine = candleSeries.createPriceLine({price: lastSpot, color: "#e7e3d8", lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "Spot"});
+}
+
+async function loadChart(fit = false) {
+  if (!chart) return;
+  const el = $("chart");
+  el.querySelector(".overlay")?.remove();
+  try {
+    const d = await getJSON(`/api/candles/${tf}?count=300&ema=true`);
+    const rows = d.candles.filter(c => c.open !== null && c.high !== null && c.low !== null && c.close !== null);
+    candleSeries.setData(rows.map(c => ({time: c.epoch + IST_OFFSET, open: c.open, high: c.high, low: c.low, close: c.close})));
+    for (const k of ["ema20","ema50","ema200"]) {
+      ema[k].setData(d.candles.filter(c => c[k] !== null && c[k] !== undefined).map(c => ({time: c.epoch + IST_OFFSET, value: c[k]})));
+    }
+    const forming = d.candles.length && d.candles[d.candles.length - 1].forming;
+    $("chartNote").textContent = `${tf} · ${rows.length} candles${forming ? " · last candle still forming" : ""}${d.notes?.length ? " · " + d.notes.join(" ") : ""}`;
+    if (fit) chart.timeScale().fitContent();
+    drawLevels();
+  } catch (e) {
+    candleSeries.setData([]); for (const k in ema) ema[k].setData([]);
+    el.insertAdjacentHTML("beforeend", `<div class="overlay">DATA UNAVAILABLE<br><span style="font-weight:400;color:var(--muted)">${e.message}</span></div>`);
+  }
+}
+
+function buildTabs() {
+  const box = $("tfTabs");
+  box.innerHTML = TFS.map(t => `<button role="tab" aria-selected="${t === tf}" class="${t === tf ? "on" : ""}" data-tf="${t}">${t}</button>`).join("");
+  box.onclick = ev => {
+    const t = ev.target.dataset.tf; if (!t || t === tf) return;
+    tf = t; buildTabs(); loadChart(true);
+  };
+}
+
+// ---------------------------------------------------------------- multi-timeframe table
+function rel(v) {
+  if (!v) return `<span class="muted">n/a</span>`;
+  return v === "above" ? `<span class="up">▲ above</span>` : v === "below" ? `<span class="down">▼ below</span>` : "at";
+}
+async function loadTechnicals() {
+  try {
+    const d = await getJSON("/api/technicals");
+    $("mtf").innerHTML = TFS.map(t => {
+      const x = d.timeframes[t];
+      if (!x || x.status !== "LIVE") return `<tr><td class="tf">${t}</td><td colspan="13" class="down" style="text-align:left">DATA UNAVAILABLE – ${x ? x.status_reason : ""}</td></tr>`;
+      const rsiTag = x.rsi14 >= 70 ? ` <span class="muted">(≥70)</span>` : x.rsi14 <= 30 ? ` <span class="muted">(≤30)</span>` : "";
+      const di = x.plus_di14 > x.minus_di14 ? "up" : x.plus_di14 < x.minus_di14 ? "down" : "";
+      return `<tr>
+        <td class="tf">${t}</td>
+        <td id="tr-${t}">–</td><td id="st-${t}">–</td>
+        <td class="num">${fmt(x.close)}</td>
+        <td>${rel(x.close_vs_ema20)}</td><td>${rel(x.close_vs_ema50)}</td>
+        <td title="${x.ema200_note || ""}">${rel(x.close_vs_ema200)}</td>
+        <td class="num">${fmt(x.rsi14, 1)}${rsiTag}</td>
+        <td class="num ${cls(x.macd_hist)}">${signed(x.macd_hist, 2)}</td>
+        <td class="num">${fmt(x.adx14, 1)}</td>
+        <td class="num ${di}">${fmt(x.plus_di14, 1)} / ${fmt(x.minus_di14, 1)}</td>
+        <td class="num">${fmt(x.bb_pct_b, 2)}</td>
+        <td class="num">${fmt(x.atr14)}</td>
+        <td class="num muted">${shortIst(x.last_closed_candle_close_ist)}</td>
+      </tr>`;
+    }).join("");
+    fillTrendCells();
+  } catch (e) {
+    $("mtf").innerHTML = `<tr><td colspan="14" class="down">DATA UNAVAILABLE – ${e.message}</td></tr>`;
+  }
+}
+
+// ---------------------------------------------------------------- sessions
+async function loadSessions() {
+  try {
+    const d = await getJSON("/api/sessions");
+    $("sessNote").textContent = d.data_until_ist ? `Chart data up to ${shortIst(d.data_until_ist)} IST` : "";
+    $("sessions").innerHTML = d.sessions.map(s => {
+      const hours = `${shortIst(s.start_ist).slice(0,5)}–${shortIst(s.end_ist).slice(0,5)} IST`;
+      const stats = s.has_data ? `
+        <div class="sgrid">
+          <span>Open</span><span>${fmt(s.open)}</span>
+          <span>High</span><span>${fmt(s.high)} <span class="muted" style="font-size:11px">${shortIst(s.high_time_ist).slice(0,5)}</span></span>
+          <span>Low</span><span>${fmt(s.low)} <span class="muted" style="font-size:11px">${shortIst(s.low_time_ist).slice(0,5)}</span></span>
+          <span>Last</span><span>${fmt(s.last)}</span>
+          <span>Range</span><span>${fmt(s.range)}</span>
+          <span>Move</span><span class="${cls(s.change)}">${signed(s.change)} (${signed(s.change_pct, 2)}%)</span>
+        </div>
+        <div class="muted" style="font-size:11.5px;margin-top:8px">${s.status === "OPEN" ? "In progress · data up to " + shortIst(s.data_until_ist).slice(0,5) + " IST" : "Completed session"} · ${s.start_ist.slice(0, 11)}</div>`
+        : `<div class="muted">No candle data for this session yet.</div>`;
+      const dir = s.has_data ? `<span class="dir ${s.direction === "UP" ? "up" : s.direction === "DOWN" ? "down" : "muted"}">${s.direction}</span>` : "";
+      return `<div class="panel">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><h3>${s.name}</h3><span class="pill ${s.status}">${s.status}</span></div>
+        <div class="hours">${hours} · ${s.local_hours} ${dir ? "· " + dir : ""}</div>
+        ${stats}
+        <div class="muted" style="font-size:11.5px;margin-top:4px">Next session: ${s.next_start_ist}</div>
+      </div>`;
+    }).join("");
+  } catch (e) {
+    $("sessions").innerHTML = `<div class="panel down">Sessions: DATA UNAVAILABLE – ${e.message}</div>`;
+  }
+}
+
+
+// ---------------------------------------------------------------- analysis (verdict + plan)
+let analysisData = null, levelLines = [];
+const li = arr => (arr && arr.length ? arr.map(x => `<li>${x}</li>`).join("") : `<li class="muted">None</li>`);
+async function loadAnalysis() {
+  try {
+    const a = await getJSON("/api/analysis");
+    analysisData = a;
+    const v = a.verdict, p = a.plan;
+    $("vEngineTime").textContent = shortIst(a.fetched_at_ist) + " IST";
+    $("vDir").textContent = v.direction; $("vDir").className = "big-verdict " + v.direction;
+    $("vStrength").textContent = v.strength + ` (ADX ${v.avg_adx_h1_h4})`;
+    $("vConf").textContent = v.confidence === null ? `n/a – ${v.lean}` : `${v.confidence}/100`;
+    $("vConfBar").style.width = (v.confidence || 0) + "%";
+    $("trend").innerHTML = `<span class="tag ${v.direction}">${v.direction}</span>`;
+    const reasons = v.direction === "NEUTRAL"
+      ? [...(v.conflict ? [v.conflict] : ["No clear agreement across timeframes."]),
+         ...v.evidence_bearish.map(x => "Bearish side – " + x), ...v.evidence_bullish.map(x => "Bullish side – " + x)]
+      : v.reasons;
+    $("vReasons").innerHTML = li(reasons);
+    $("vAgainst").innerHTML = li(v.against.filter(x => x !== v.conflict));
+    $("vInval").innerHTML = li(a.invalidation);
+    $("vScen").innerHTML = li([a.bullish_scenario, a.bearish_scenario].filter(Boolean));
+
+    const bt = a.backtest || {};
+    const btEl = $("pBacktest");
+    if (bt.state && bt.state !== "PASSED") {
+      btEl.style.display = "grid";
+      btEl.style.borderColor = bt.state === "FAILED" ? "#5a2525" : "";
+      btEl.style.background = bt.state === "FAILED" ? "#2a1212" : "";
+      btEl.style.color = bt.state === "FAILED" ? "#f3b0a8" : "";
+      btEl.innerHTML = `<span><b>${bt.state === "FAILED" ? "⛔" : "⚠"} ${esc(bt.message)}</b></span>` +
+        (bt.period_start ? `<span style="font-size:12px">Tested ${esc(bt.period_start.slice(0, 10))} → ${esc(bt.period_end.slice(0, 10))} · re-run: python scripts\\run_backtest.py</span>` : "");
+    } else if (bt.state === "PASSED") {
+      btEl.style.display = "grid"; btEl.style.borderColor = "#1d4a35"; btEl.style.background = "#0f2219"; btEl.style.color = "#9fe0bf";
+      btEl.innerHTML = `<span>✓ ${esc(bt.message)}</span>`;
+    }
+    $("pJournal").innerHTML = journalLine(a.journal);
+    $("pAction").textContent = p.action; $("pAction").className = "act " + (p.action === "NO TRADE" ? "NO" : p.action);
+    $("pHeadline").textContent = p.headline;
+    $("pReason").textContent = p.reason;
+    $("pTiming").textContent = p.timing || "";
+    if (p.setup) {
+      const s = p.setup, sp = s.spot_equivalent;
+      const row = (k, c, q) => `<tr><td>${k}</td><td class="num">${c}</td><td class="num">${q}</td></tr>`;
+      $("pSetup").innerHTML = `<table class="lvls"><thead><tr><th>${s.timeframe}</th><th>Chart series</th><th>≈ Spot (gap ${signed(sp.basis_used)})</th></tr></thead><tbody>
+        ${row("Entry zone", fmt(s.entry_zone[0]) + " – " + fmt(s.entry_zone[1]), fmt(sp.entry_zone[0]) + " – " + fmt(sp.entry_zone[1]))}
+        ${row(`<span class="down">Stop-loss</span>`, fmt(s.stop_loss), fmt(sp.stop_loss))}
+        ${row(`<span class="up">Take-profit 1</span>`, s.take_profit_1 !== null ? fmt(s.take_profit_1) + ` <span class="muted">(${fmt(s.rr_tp1)}R)</span>` : "–", fmt(sp.take_profit_1))}
+        ${row(`<span class="up">Take-profit 2</span>`, fmt(s.take_profit_2) + ` <span class="muted">(${s.rr_tp2}R)</span>`, fmt(sp.take_profit_2))}
+        ${row("Risk per oz", "$" + fmt(s.risk_per_oz) + ` <span class="muted">(${fmt(s.risk_atr)}× ATR)</span>`, "")}
+      </tbody></table><div class="muted" style="font-size:11.5px;margin-top:4px">${sp.note}</div>`;
+      $("pEnterH").textContent = "Enter only when"; $("pEnter").innerHTML = li(p.enter_when);
+    } else {
+      $("pSetup").innerHTML = "";
+      $("pEnterH").textContent = "What to wait for"; $("pEnter").innerHTML = li(p.wait_for);
+    }
+    $("pAvoid").innerHTML = li(p.avoid_when);
+
+    fillTrendCells();
+    drawLevels();
+  } catch (e) {
+    $("vDir").textContent = "DATA UNAVAILABLE"; $("vDir").className = "big-verdict NEUTRAL";
+    $("pAction").textContent = "NO TRADE"; $("pAction").className = "act NO";
+    $("pHeadline").textContent = "No analysis without live data"; $("pReason").textContent = e.message;
+    $("pSetup").innerHTML = ""; analysisData = null; drawLevels();
+  }
+}
+
+function fillTrendCells() {
+  if (!analysisData) return;
+  for (const t of TFS) {
+    const x = analysisData.timeframes[t], c = document.getElementById("tr-" + t), s2 = document.getElementById("st-" + t);
+    if (c) c.innerHTML = x ? `<span class="tag ${x.label}">${x.label}</span> <span class="num muted">${x.score > 0 ? "+" : ""}${x.score}</span>` : "–";
+    if (s2) s2.innerHTML = x ? `<span class="${x.structure.score > 0 ? "up" : x.structure.score < 0 ? "down" : "muted"}" title="${x.structure.text}">${x.structure.label}</span>` : "–";
+  }
+}
+
+function drawLevels() {
+  if (!candleSeries) return;
+  levelLines.forEach(l => candleSeries.removePriceLine(l)); levelLines = [];
+  if (!analysisData) return;
+  const x = analysisData.timeframes[tf];
+  const add = (price, color, title, style = 1) => levelLines.push(candleSeries.createPriceLine({price, color, lineWidth: 1, lineStyle: style, axisLabelVisible: true, title}));
+  if (x) {
+    x.supports.forEach(s => add(s.level, "#2fbf7a", `S ${s.touches}×`, 3));
+    x.resistances.forEach(r => add(r.level, "#ef5b5b", `R ${r.touches}×`, 3));
+  }
+  const s = analysisData.plan.setup;
+  if (s && (tf === "H1" || tf === "M15" || tf === "M30" || tf === "M5")) {
+    add(s.entry_zone[0], "#d9b25b", "Entry", 0); add(s.entry_zone[1], "#d9b25b", "Entry", 0);
+    add(s.stop_loss, "#ef5b5b", "SL", 0); add(s.take_profit_2, "#2fbf7a", "TP2", 0);
+    if (s.take_profit_1 !== null) add(s.take_profit_1, "#2fbf7a", "TP1", 0);
+  }
+}
+
+
+// ---------------------------------------------------------------- news
+let newsData = null, newsFilter = "all", seenLinks = null, newLinks = new Set();
+const sentTag = l => l.includes("BULLISH") ? "BULLISH" : l.includes("BEARISH") ? "BEARISH" : "NEUTRAL";
+const chipCls = l => ({"STRONGLY BULLISH": "sb", "MODERATELY BULLISH": "mb", "STRONGLY BEARISH": "sbe", "MODERATELY BEARISH": "mbe"}[l] || "");
+const esc = t => String(t || "").replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+const ago = m => m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`;
+function renderNews() {
+  if (!newsData) return;
+  const items = newsData.items.filter(x => newsFilter === "all" || (newsFilter === "High" && x.impact === "High")
+    || (newsFilter === "bull" && x.sentiment_score > 0) || (newsFilter === "bear" && x.sentiment_score < 0)).slice(0, 25);
+  $("newsList").innerHTML = items.length ? items.map(x => `<div class="nitem">
+      <div class="nmeta"><span class="num">${esc(x.published_ist.slice(-12, -7))} IST · ${ago(x.age_minutes)}</span> · <b style="color:var(--ink)">${esc(x.source)}</b>
+        ${x.also_reported_by.length ? `<span>+${x.also_reported_by.length} more source${x.also_reported_by.length > 1 ? "s" : ""}</span>` : ""}
+        ${newLinks.has(x.link) ? `<span class="chip High">NEW</span>` : ""}<span class="chip">${x.type}</span><span class="chip ${x.impact}">${x.impact} impact</span><span class="chip ${chipCls(x.sentiment)}">${x.sentiment}</span>
+        ${x.topics.map(t => `<span class="chip">${esc(t)}</span>`).join("")}</div>
+      <a href="${esc(x.link)}" target="_blank" rel="noopener noreferrer">${esc(x.title)}</a>
+      ${x.summary ? `<div style="font-size:13px">${esc(x.summary)}</div>` : ""}
+      <div class="nexp">Why: ${esc(x.explanation)}</div>
+    </div>`).join("") : `<div class="muted" style="padding:10px 0">No stories match this filter.</div>`;
+}
+async function loadNews() {
+  try {
+    const n = await getJSON("/api/news");
+    newsData = n;
+    if (seenLinks === null) seenLinks = new Set(n.items.map(x => x.link));
+    else for (const x of n.items) if (!seenLinks.has(x.link)) { seenLinks.add(x.link); newLinks.add(x.link); }
+    const fs = n.fundamental_sentiment;
+    $("nSent").textContent = fs.label; $("nSent").className = "tag " + sentTag(fs.label);
+    $("vNews").textContent = fs.label; $("vNews").className = "tag " + sentTag(fs.label);
+    $("nScore").textContent = `score ${fs.score > 0 ? "+" : ""}${fs.score} (−2…+2)`;
+    $("nCounts").textContent = `${fs.stories_counted} unique stories counted · ${fs.bullish} bullish / ${fs.bearish} bearish / ${fs.neutral} neutral`;
+    const errs = Object.keys(n.feed_errors).length;
+    $("nUpdated").textContent = `Checked ${shortIst(n.fetched_at_ist)} IST · gold & Fed feeds every ${n.refresh ? n.refresh.fast_seconds : 30} s, other topics every ${n.refresh ? n.refresh.other_seconds / 60 : 2} min` + (errs ? ` · ${errs} feed(s) had a problem` : "");
+    $("nUpdated").title = Object.entries(n.feed_errors).map(([k, v]) => `${k}: ${v}`).join("\n");
+    $("nMethod").textContent = fs.method + " " + n.classifier;
+    renderNews();
+  } catch (e) {
+    $("newsList").innerHTML = `<div class="down" style="padding:10px 0">News: DATA UNAVAILABLE – ${esc(e.message)}</div>`;
+    $("nSent").textContent = "NO DATA";
+  }
+}
+$("newsFilter").onclick = ev => {
+  const f = ev.target.dataset.f; if (!f) return;
+  newsFilter = f;
+  [...$("newsFilter").children].forEach(b => b.classList.toggle("on", b.dataset.f === f));
+  renderNews();
+};
+
+
+// ---------------------------------------------------------------- signal journal
+function journalLine(c) {
+  if (!c) return "";
+  if (c.state === "OPEN") return `<span class="${c.side === "SELL" ? "down" : "up"}"><b>Journal: ${c.side} trade OPEN</b></span> – entry ${fmt(c.entry)}, stop ${fmt(c.stop)}, target ${fmt(c.target)} (since ${shortIst(c.opened_ist)} IST)`;
+  if (c.state === "PENDING") return `<b style="color:var(--gold)">Journal: ${c.side} setup PENDING</b> – zone ${fmt(c.zone[0])}–${fmt(c.zone[1])}, stop ${fmt(c.stop)}; ${c.touched ? "zone reached, waiting for an H1 confirmation close" : "waiting for price to reach the zone"} (expires ${shortIst(c.expires_ist)} IST)`;
+  if (c.state === "WAITING") return `<span class="muted">Journal: no active setup – watching every H1 close.</span>`;
+  return "";
+}
+async function loadJournal() {
+  try {
+    const j = await getJSON("/api/journal");
+    const c = j.current || {};
+    $("jMeta").textContent = `${j.strategy} · started ${shortIst(j.started_ist).slice(0, 5)} IST ${j.started_ist.slice(0, 11)} · checked ${shortIst(j.checked_ist)} IST`;
+    $("jState").innerHTML = journalLine(c) || esc(c.state || "–");
+    $("jStateDetail").textContent = j.error ? "Last check had a problem: " + j.error : (c.last_candle_ist ? `Last closed H1 candle: ${shortIst(c.last_candle_ist)} IST` : "");
+    const s = j.stats;
+    $("jN").textContent = s.trades;
+    $("jWin").textContent = s.win_rate === null ? "–" : s.win_rate + "%";
+    $("jAvg").innerHTML = s.avg_r === null ? "–" : `<span class="${cls(s.avg_r)}">${signed(s.avg_r, 2)}</span>`;
+    $("jTot").innerHTML = `<span class="${cls(s.total_r)}">${signed(s.total_r, 2)}</span>`;
+    $("jPf").textContent = s.pf === null ? "–" : (s.pf >= 99 ? "∞" : fmt(s.pf, 2));
+    $("jDd").textContent = s.max_dd_r ? fmt(s.max_dd_r, 2) + " R" : "–";
+    $("jGoal").textContent = `${j.goal} ${j.note} (${s.trades}/30 trades so far)`;
+    $("jTrades").innerHTML = j.trades.length ? j.trades.map(t => `<tr><td>${esc(t.signal_ist.slice(0, 18))}</td><td class="${t.side === "SELL" ? "down" : "up"}">${t.side}</td>
+      <td class="num">${fmt(t.entry)}</td><td class="num">${fmt(t.stop)}</td><td class="num">${fmt(t.target)}</td>
+      <td>${t.result}</td><td class="num ${cls(t.r)}">${signed(t.r, 2)}</td></tr>`).join("")
+      : `<tr><td colspan="7" class="muted">No completed trades yet – the journal records only setups after it started.</td></tr>`;
+  } catch (e) {
+    $("jState").textContent = "Journal unavailable – " + e.message;
+  }
+}
+
+// ---------------------------------------------------------------- start + refresh
+buildTabs();
+initChart();
+loadPrice().then(() => loadChart(true));
+loadTechnicals().then(loadAnalysis);
+loadSessions();
+loadNews();
+loadJournal();
+setInterval(loadJournal, 60000);
+setInterval(loadNews, 30000);
+setInterval(loadAnalysis, 60000);
+setInterval(loadPrice, 30000);
+setInterval(() => loadChart(false), 60000);
+setInterval(loadTechnicals, 60000);
+setInterval(loadSessions, 60000);
+</script>
+</body>
+</html>
