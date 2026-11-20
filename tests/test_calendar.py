@@ -77,22 +77,32 @@ def test_cached_for_an_hour_and_keeps_last_copy_on_failure():
     assert stub.calls == 3
 
 
-def test_unavailable_when_never_loaded():
-    cal, _ = make(DataUnavailableError("no network"))
-    try:
-        cal.payload()
-        assert False, "should raise"
-    except DataUnavailableError as exc:
-        assert "no network" in str(exc)
+def test_falls_back_to_official_schedule_when_feed_never_loaded():
+    # NFP is on Fri 4 Dec 2026 08:30 New York time (13:30 UTC)
+    clock = Clock(datetime(2026, 12, 4, 13, 10, tzinfo=timezone.utc).timestamp())
+    cal, _ = make(DataUnavailableError("Rate limit reached"), clock)
+    p = cal.payload()
+    assert p["fallback"] is True
+    assert "official" in p["source"].lower()
+    assert "Rate limit" in p["stale_note"]
+    assert p["warning"]["state"] == "NO_TRADE"          # NFP 20 minutes away
+    assert "Non-Farm" in p["warning"]["text"]
+    nfp = next(e for e in p["events"] if "Non-Farm" in e["title"])
+    assert nfp["time_utc"].startswith("2026-12-04T13:30")
 
 
-def test_bad_format():
+def test_official_schedule_uses_new_york_time_and_dst():
+    from backend.data import us_schedule
+    feed = {e["title"] + e["date"][:10]: e["date"] for e in us_schedule.as_feed()}
+    assert feed["FOMC Statement & Federal Funds Rate2026-12-09"].endswith("-05:00")   # winter (EST)
+    assert feed["FOMC Statement & Federal Funds Rate2027-06-09"].endswith("-04:00")   # summer (EDT)
+    dates = [e["date"] for e in us_schedule.as_feed()]
+    assert all(d[:10] <= us_schedule.LAST_DATE for d in dates)
+
+
+def test_bad_format_falls_back():
     cal, _ = make({"error": "x"})
-    try:
-        cal.payload()
-        assert False
-    except DataUnavailableError:
-        pass
+    assert cal.payload()["fallback"] is True
 
 
 def test_api_endpoint():
