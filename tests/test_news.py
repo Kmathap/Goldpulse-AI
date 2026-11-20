@@ -197,3 +197,19 @@ def test_crypto_story_is_not_gold_news():
 def test_rising_treasury_yields_phrase_is_bearish():
     c = classify(NewsItem("Gold under pressure from rising Treasury yields", "X", NOW, "l", "", "f"))
     assert c["sentiment_score"] < 0
+
+
+def test_rate_hike_wording_is_bearish_and_pauses_are_not():
+    from datetime import datetime, timezone
+    from backend.analysis.news_scoring import classify
+    from backend.data.news_provider import NewsItem
+
+    def score(title):
+        return classify(NewsItem(title=title, source="X", published_utc=datetime.now(timezone.utc),
+                                 link="l", summary="", feed="f"))["sentiment_score"]
+
+    assert score("Why would the Fed consider a half-percentage-point hike in December?") < 0
+    assert score("Fed signals 25 bps hike") < 0
+    assert score("ECB hikes rates again") < 0
+    assert score("Fed expected to pause rate hikes") > 0
+    assert score("Goldman hikes its gold forecast to $4,650") > 0
