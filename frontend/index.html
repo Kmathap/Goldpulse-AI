@@ -404,14 +404,14 @@ body::after{content:"";position:fixed;inset:auto 0 0 0;height:40vh;z-index:-1;po
         <span class="tabs" id="tfTabs" role="tablist" aria-label="Chart timeframe"></span>
       </h2>
       <div class="modes" id="chartModes">
-        <button data-mode="live" class="on">⚡ Live chart (real-time)</button>
-        <button data-mode="gp">GoldPulse chart (levels · delayed)</button>
+        <button data-mode="gp" class="on">GoldPulse chart · same prices as the signals</button>
+        <button data-mode="live">TradingView reference (OANDA)</button>
       </div>
-      <div id="liveBox">
-        <div class="legend"><span id="liveNote">Real-time XAUUSD candles from TradingView (OANDA spot). Use the “≈ Spot” levels from the trade plan on this chart.</span></div>
+      <div id="liveBox" class="hidden">
+        <div class="legend"><span id="liveNote">Reference only: TradingView shows OANDA's price, which is usually a few dollars away from GoldPulse and from your broker (XM). The zones and stops are calculated on the GoldPulse chart.</span></div>
         <div id="tvchart"></div>
       </div>
-      <div id="gpBox" class="hidden">
+      <div id="gpBox">
       <div class="legend">
         <span><i style="background:var(--gold)"></i>EMA 20</span>
         <span><i style="background:var(--blue)"></i>EMA 50</span>
@@ -582,7 +582,7 @@ async function loadChart(fit = false) {
 
 // ---------------------------------------------------------------- live chart (TradingView widget, real-time)
 const TV_INTERVAL = {M5: "5", M15: "15", M30: "30", H1: "60", H4: "240", D1: "D"};
-let chartMode = "live", tvShownTf = null;
+let chartMode = "gp", tvShownTf = null;
 function loadLiveChart() {
   if (chartMode !== "live" || tvShownTf === tf) return;
   tvShownTf = tf;
@@ -820,6 +820,17 @@ function drawLevels() {
   if (x) {
     x.supports.forEach(s => add(s.level, "#2fbf7a", `S ${s.touches}×`, 3));
     x.resistances.forEach(r => add(r.level, "#ef5b5b", `R ${r.touches}×`, 3));
+  }
+  const j = analysisData.journal;
+  if (j && (j.state === "PENDING" || j.state === "OPEN")) {
+    // the setup the strategy is really tracking – the same fixed numbers as the trade plan and the signal light
+    if (j.state === "PENDING") {
+      add(j.zone[0], "#e6c172", `${j.side} zone`, 0); add(j.zone[1], "#e6c172", `${j.side} zone`, 0);
+    } else {
+      add(j.entry, "#e6c172", `${j.side} entry`, 0); add(j.target, "#34d399", "Target", 0);
+    }
+    add(j.stop, "#f26b6b", "Stop-loss", 0);
+    return;
   }
   const s = analysisData.plan.setup;
   if (s && (tf === "H1" || tf === "M15" || tf === "M30" || tf === "M5")) {
@@ -1085,7 +1096,6 @@ async function loadJournal() {
 tf = "M5";
 buildTabs();
 initChart();
-loadLiveChart();
 loadPrice().then(() => loadChart(true));
 loadTechnicals().then(loadAnalysis);
 loadSessions();
@@ -1099,7 +1109,7 @@ setInterval(loadCalendar, 60000);
 setInterval(loadRelated, 60000);
 setInterval(loadAnalysis, 60000);
 setInterval(loadPrice, 30000);
-setInterval(() => loadChart(false), 60000);
+setInterval(() => { if (chartMode === "gp") loadChart(false); }, 20000);
 setInterval(loadTechnicals, 60000);
 setInterval(loadSessions, 60000);
 </script>
