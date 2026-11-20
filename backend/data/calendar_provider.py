@@ -90,7 +90,7 @@ class CalendarProvider:
             events, fetched_at, error = self._events, self._fetched_at, self._last_error
         source, fallback = SOURCE, False
         if events is None:
-            events = [p for p in (_parse(e) for e in us_schedule.as_feed()) if p]
+            events = sorted((p for p in (_parse(e) for e in us_schedule.as_feed()) if p), key=lambda x: x["time"])
             source, fallback = us_schedule.SOURCE, True
 
         now_ts = self._clock()
