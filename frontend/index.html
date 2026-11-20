@@ -230,6 +230,48 @@ footer{border-top:1px solid transparent;border-image:linear-gradient(90deg,trans
 @keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 @media (max-width:600px){.brand span{display:none}.brand h1{font-size:24px}.light .big{font-size:30px}.price-main .big{font-size:38px}.panel{padding:14px}}
+
+/* ================= ULTRA-PREMIUM 3D LAYER ================= */
+.brand::before{display:none}
+/* spinning 3D gold coin */
+.coin3d{width:46px;height:46px;perspective:500px;flex:none;filter:drop-shadow(0 6px 14px rgba(230,193,114,.35))}
+.coin{position:relative;width:100%;height:100%;transform-style:preserve-3d;animation:coinspin 7s cubic-bezier(.45,.05,.55,.95) infinite}
+.coin .face,.coin i{position:absolute;inset:0;border-radius:50%}
+.coin .face{display:grid;place-items:center;font:800 24px/1 var(--serif);color:#7a5517;
+  background:radial-gradient(circle at 30% 25%,#fff8dc 0 6%,#f6d98e 18%,#e2b257 42%,#b98431 70%,#8a5f1e 100%);
+  box-shadow:inset 0 0 0 3px rgba(255,236,170,.55),inset 0 0 0 5px rgba(140,98,30,.6),inset 0 -6px 10px rgba(80,52,10,.45);
+  text-shadow:0 1px 0 rgba(255,240,190,.8),0 -1px 0 rgba(90,60,15,.6);backface-visibility:hidden}
+.coin .front{transform:translateZ(4px)} .coin .back{transform:rotateY(180deg) translateZ(4px)}
+.coin i{background:linear-gradient(90deg,#7a541a,#d7a84e 50%,#7a541a);transform:translateZ(var(--z))}
+@keyframes coinspin{0%{transform:rotateY(0) rotateX(8deg)}50%{transform:rotateY(180deg) rotateX(-8deg)}100%{transform:rotateY(360deg) rotateX(8deg)}}
+
+/* 3D extruded title & price */
+.brand h1{filter:drop-shadow(0 1px 0 #9c7b3a) drop-shadow(0 1px 0 #7d6029) drop-shadow(0 1px 0 #5f4719) drop-shadow(0 8px 14px rgba(0,0,0,.7))}
+.price-main .big{filter:drop-shadow(0 1px 0 #9c7b3a) drop-shadow(0 1px 0 #6e5320) drop-shadow(0 10px 18px rgba(0,0,0,.65))}
+.light .big{filter:drop-shadow(0 2px 0 rgba(0,0,0,.35)) drop-shadow(0 10px 22px rgba(0,0,0,.55))}
+
+/* 3D perspective gold floor behind the page */
+body::before{content:"";position:fixed;left:-60%;right:-60%;bottom:-38vh;height:78vh;z-index:-1;pointer-events:none;
+  background-image:linear-gradient(rgba(230,193,114,.16) 1px,transparent 1px),linear-gradient(90deg,rgba(230,193,114,.16) 1px,transparent 1px);
+  background-size:64px 64px;transform:perspective(520px) rotateX(72deg);transform-origin:50% 0;
+  -webkit-mask-image:linear-gradient(to top,#000 10%,transparent 85%);mask-image:linear-gradient(to top,#000 10%,transparent 85%);
+  animation:floor 14s linear infinite}
+body::after{content:"";position:fixed;inset:auto 0 0 0;height:40vh;z-index:-1;pointer-events:none;
+  background:radial-gradient(60% 100% at 50% 100%,rgba(230,193,114,.10),transparent 70%)}
+@keyframes floor{to{background-position:0 64px,0 0}}
+
+/* depth: layered shadows + 3D tilt with light glare */
+.panel,.light{transform-style:preserve-3d;will-change:transform;transition:transform .25s ease,box-shadow .25s ease;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 2px 0 rgba(0,0,0,.4),0 14px 28px -14px rgba(0,0,0,.8),0 40px 70px -40px rgba(0,0,0,.9)}
+.tilt:hover{box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 2px 0 rgba(0,0,0,.4),0 26px 50px -18px rgba(0,0,0,.9),0 0 0 1px rgba(230,193,114,.22)}
+.tilt::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;opacity:0;transition:opacity .25s ease;
+  background:radial-gradient(420px circle at var(--gx,50%) var(--gy,0%),rgba(255,236,180,.10),transparent 45%)}
+.tilt:hover::after{opacity:1}
+.light.BUY,.light.SELL{animation:breathe 2.6s ease-in-out infinite}
+@keyframes breathe{50%{box-shadow:0 0 0 1px rgba(255,255,255,.12),0 0 90px var(--glow,rgba(242,107,107,.38))}}
+.light.BUY{--glow:rgba(52,211,153,.38)}
+@media (prefers-reduced-motion:reduce),(max-width:700px){body::before{animation:none}}
+@media (prefers-reduced-motion:reduce){.coin{animation:none}}
 </style>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -238,7 +280,7 @@ footer{border-top:1px solid transparent;border-image:linear-gradient(90deg,trans
 <body>
 <div class="wrap">
   <header>
-    <div class="brand"><h1>GOLD<b>PULSE</b> AI</h1><span>Live Gold Market Intelligence · XAUUSD</span></div>
+    <div class="brand"><div class="coin3d" aria-hidden="true"><div class="coin"><div class="face front">G</div><div class="face back">G</div><i style="--z:-3px"></i><i style="--z:-2px"></i><i style="--z:-1px"></i><i style="--z:0px"></i><i style="--z:1px"></i><i style="--z:2px"></i><i style="--z:3px"></i></div></div><h1>GOLD<b>PULSE</b> AI</h1><span>Live Gold Market Intelligence · XAUUSD</span></div>
     <div class="meta">
       <span id="status" class="pill DATA_UNAVAILABLE">LOADING</span>
       <span class="muted">Updated <span id="updated" class="num">–</span></span>
@@ -960,6 +1002,22 @@ async function loadJournal() {
 }
 
 // ---------------------------------------------------------------- start + refresh
+// ---------------------------------------------------------------- 3D tilt (desktop mouse only)
+(function () {
+  if (!window.matchMedia || !matchMedia("(pointer:fine)").matches || matchMedia("(prefers-reduced-motion:reduce)").matches) return;
+  const MAX = 3.5;   // degrees
+  document.querySelectorAll(".panel, .light").forEach(el => {
+    if (el.querySelector("#chart, #tvchart")) return;   // keep the price charts steady
+    el.classList.add("tilt");
+    el.addEventListener("pointermove", e => {
+      const r = el.getBoundingClientRect(), x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
+      el.style.transform = `perspective(1100px) rotateX(${((0.5 - y) * MAX).toFixed(2)}deg) rotateY(${((x - 0.5) * MAX).toFixed(2)}deg) translateZ(4px)`;
+      el.style.setProperty("--gx", (x * 100).toFixed(1) + "%"); el.style.setProperty("--gy", (y * 100).toFixed(1) + "%");
+    });
+    el.addEventListener("pointerleave", () => { el.style.transform = ""; });
+  });
+})();
+
 tf = "M5";
 buildTabs();
 initChart();
