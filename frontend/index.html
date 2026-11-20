@@ -522,6 +522,7 @@ async function loadPrice() {
     $("warnings").innerHTML = (p.warnings || []).map(w => `<span>⚠ ${w}</span>`).join("");
     $("spotAge").textContent = p.spot.age_seconds !== null ? `${Math.round(p.spot.age_seconds)} s` : "–";
     lastSpot = p.spot.price;
+    renderLight();
     drawSpotLine();
   } catch (e) {
     setStatus("DATA_UNAVAILABLE", e.message);
@@ -741,8 +742,31 @@ async function loadAnalysis() {
           + row(`<span class="up">Target</span>`, "2R from your entry", "");
       $("pAction").textContent = j.side; $("pAction").className = "act " + j.side;
       $("pHeadline").textContent = `${j.side} SETUP ${j.state === "OPEN" ? "OPEN" : "ACTIVE"} – signal from the H1 candle that closed ${shortIst(j.signal_ist || j.opened_ist)} IST (strategy A)`;
+      // where is price NOW relative to the fixed setup?
+      const now = lastSpot === null ? null : lastSpot + (gap || 0);
+      let nowLine = "";
+      if (now !== null && j.state === "PENDING") {
+        const [lo, hi] = j.zone, dir = sell ? "rise" : "fall", candle = sell ? "red" : "green";
+        if (now >= lo && now <= hi) nowLine = `▶ RIGHT NOW: price ${fmt(now)} is INSIDE the ${j.side} zone. Wait for the next H1 candle (closes at :30 IST) to close ${candle} – then ${j.side.toLowerCase()} at that close.`;
+        else if (sell ? now < lo : now > hi) nowLine = `▶ RIGHT NOW: NO ENTRY. Price ${fmt(now)} is $${fmt(Math.abs((sell ? lo : hi) - now))} ${sell ? "below" : "above"} the zone – the move already happened. Do not ${j.side.toLowerCase()} here; wait for a ${dir} back into ${fmt(lo)}–${fmt(hi)}.`;
+        else nowLine = `▶ RIGHT NOW: price ${fmt(now)} is beyond the zone, close to the stop ${fmt(j.stop)}. No entry – if H1 trades through ${fmt(j.stop)} the setup is cancelled.`;
+      } else if (now !== null && j.state === "OPEN") {
+        const risk = Math.abs(j.entry - j.stop), r = ((sell ? j.entry - now : now - j.entry) / risk);
+        nowLine = `▶ RIGHT NOW: trade running – price ${fmt(now)}, ${r >= 0 ? "+" : ""}${r.toFixed(2)}R (${r >= 0 ? "in profit" : "in loss"}). Exit at stop ${fmt(j.stop)} or target ${fmt(j.target)}.`;
+      }
+      $("pTiming").textContent = nowLine;
+      // the next setup the engine would form if this one expires unused (moves every minute until it is real)
+      let nextHtml = "";
+      if (j.state === "PENDING" && p.setup && p.action !== "NO TRADE" &&
+          (p.action !== j.side || Math.abs(p.setup.entry_zone[0] - j.zone[0]) > 0.5)) {
+        const ns = p.setup;
+        nextHtml = `<div class="sub" style="margin-top:12px">Next setup · preview, not active</div>
+          <div style="font-size:13px;margin-top:4px">If this setup expires unused (${shortIst(j.expires_ist)} IST), the strategy would form a new <b class="${p.action === "SELL" ? "down" : "up"}">${p.action}</b> setup near:
+          <span class="num">zone ${fmt(ns.entry_zone[0])}–${fmt(ns.entry_zone[1])} · stop ${fmt(ns.stop_loss)}${ns.take_profit_1 !== null ? " · TP1 " + fmt(ns.take_profit_1) : ""}</span>.
+          <span class="muted">These numbers are recalculated every minute and only become real when a new signal forms. Do not trade them yet.</span></div>`;
+      }
       $("pSetup").innerHTML = `<table class="lvls"><thead><tr><th>Active setup · fixed levels</th><th>Chart series</th><th>≈ Spot (gap ${signed(gap)})</th></tr></thead><tbody>${rows}</tbody></table>
-        <div class="muted" style="font-size:11.5px;margin-top:4px">These levels were fixed when the signal formed and do not move – the same rule the backtest used. Re-check on your broker's chart.</div>`;
+        <div class="muted" style="font-size:11.5px;margin-top:4px">These levels were fixed when the signal formed and do not move – the same rule the backtest used. Re-check on your broker's chart.</div>${nextHtml}`;
       $("pEnterH").textContent = j.state === "OPEN" ? "Manage the trade" : "Enter only when";
       $("pEnter").innerHTML = li(j.state === "OPEN"
         ? [`Keep the stop at ${fmt(j.stop)} and the target at ${fmt(j.target)} – do not move them.`, "The journal marks the result when price reaches either level."]
@@ -986,7 +1010,12 @@ function renderLight() {
     levels = `Zone ${zone} · Stop ${fmt(c.stop)}`;
     if (c.touched) { cls = "READY"; big = `🟠 GET READY – ${c.side}`;
       text = `Price reached the ${c.side} zone. The light turns ${c.side === "BUY" ? "GREEN" : "RED"} if the next H1 candle closes ${c.side === "BUY" ? "green" : "red"} (H1 candles close at :30 IST).`; }
-    else { big = `⚪ WAIT – ${c.side} setup`; text = `Waiting for price to come back to the ${c.side} zone. Expires ${shortIst(c.expires_ist)} IST.`; }
+    else {
+      big = `⚪ WAIT – ${c.side} setup`;
+      const away = lastSpot === null ? null : (c.side === "SELL" ? c.zone[0] - lastSpot : lastSpot - c.zone[1]);
+      text = (away !== null && away > 0 ? `No entry now – price ${fmt(lastSpot)} is $${fmt(away)} ${c.side === "SELL" ? "below" : "above"} the zone. ` : "")
+        + `Waiting for price to come back to the ${c.side} zone. Expires ${shortIst(c.expires_ist)} IST.`;
+    }
   }
   if (lightCal === "NO_TRADE" && !(c && c.state === "OPEN")) {
     cls = "NEWS"; big = "⛔ NO TRADE – BIG NEWS"; text = "High-impact US news is close – see the Economic calendar. Wait until it has passed.";
