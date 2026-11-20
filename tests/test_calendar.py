@@ -89,6 +89,8 @@ def test_falls_back_to_official_schedule_when_feed_never_loaded():
     assert "Non-Farm" in p["warning"]["text"]
     nfp = next(e for e in p["events"] if "Non-Farm" in e["title"])
     assert nfp["time_utc"].startswith("2026-12-04T13:30")
+    times = [e["time_utc"] for e in p["events"]]
+    assert times == sorted(times)
 
 
 def test_official_schedule_uses_new_york_time_and_dst():
