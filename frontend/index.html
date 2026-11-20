@@ -102,6 +102,10 @@ footer{color:var(--muted);font-size:12px;border-top:1px solid var(--line);paddin
 .newstbl td.ev{font-weight:600;max-width:0;width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .newstbl td.ev a{color:var(--ink);text-decoration:none} .newstbl td.ev a:hover{color:var(--gold);text-decoration:underline}
 .newstbl td.src{color:var(--muted);font-size:12px;max-width:140px;overflow:hidden;text-overflow:ellipsis}
+.calwarn.CONFIRMS{border-color:rgba(230,193,114,.6);background:rgba(230,193,114,.08);color:#f3dc9c}
+.calwarn.PARTLY{border-color:rgba(230,193,114,.35);color:#e9d9ad}
+.calwarn.MIXED,.calwarn.FLAT,.calwarn.UNKNOWN{color:var(--muted)}
+.calwarn.CONFLICTS{border-color:rgba(240,179,74,.6);background:rgba(240,179,74,.08);color:var(--warn)}
 .calmore{margin-top:6px;font:600 12px var(--sans);color:var(--gold);background:transparent;border:1px solid var(--gold-dim);border-radius:6px;padding:3px 10px;cursor:pointer}
 .newsfilter{display:flex;gap:4px;flex-wrap:wrap}
 .newsfilter button{font:600 11px var(--sans);color:var(--muted);background:transparent;border:1px solid var(--line);border-radius:6px;padding:3px 8px;cursor:pointer}
@@ -328,6 +332,12 @@ body::after{content:"";position:fixed;inset:auto 0 0 0;height:40vh;z-index:-1;po
       <div class="sub" id="pEnterH">Enter only when</div><ul class="ev" id="pEnter"></ul>
       <div class="sub">Avoid the trade when</div><ul class="ev" id="pAvoid"></ul>
     </div>
+  </section>
+
+  <section class="panel" aria-label="Related markets">
+    <h2><span>Related markets · do forex &amp; commodities confirm gold?</span><span class="muted" id="rmMeta" style="text-transform:none;letter-spacing:0;font-weight:400"></span></h2>
+    <div id="rmVerdict" class="calwarn">Loading related markets…</div>
+    <div id="rmList"></div>
   </section>
 
   <section class="panel" aria-label="Economic calendar">
@@ -876,6 +886,31 @@ async function loadCalendar() {
   }
 }
 
+// ---------------------------------------------------------------- related markets
+const RM_ICON = {"XAU/USD": "🥇", "XAG/USD": "🥈", "WTI/USD": "🛢️"};
+async function loadRelated() {
+  try {
+    const r = await getJSON("/api/related");
+    const v = r.verdict, icon = {CONFIRMS: "✅", PARTLY: "☑️", MIXED: "⚖️", CONFLICTS: "⚠️", FLAT: "➖", UNKNOWN: "❔"}[v.state] || "";
+    $("rmVerdict").className = "calwarn " + v.state;
+    $("rmVerdict").textContent = `${icon} ${v.state === "PARTLY" ? "PARTLY CONFIRMED" : v.state} – ${v.text}`;
+    $("rmMeta").textContent = `${r.source} · ${shortIst(r.fetched_at_ist)} IST`;
+    const dp = s => s === "USD/JPY" ? 2 : /XAU|XAG|WTI/.test(s) ? 2 : 4;
+    $("rmList").innerHTML = `<table class="caltbl"><thead><tr><th></th><th>Market</th><th>Price</th><th>Today</th><th title="What this move means for gold">For gold</th></tr></thead><tbody>` +
+      r.markets.map(m => {
+        if (!m.available) return `<tr><td>${RM_ICON[m.symbol] || "💱"}</td><td class="ev">${esc(m.name)} <span class="muted">${esc(m.symbol)}</span></td><td colspan="3" class="muted">${esc(m.note)}</td></tr>`;
+        const eff = m.symbol === "XAU/USD" ? `<span class="muted">—</span>` : m.symbol === "WTI/USD" ? `<span class="muted" title="Context only">info</span>`
+          : m.gold_effect > 0 ? `<span class="up" title="Supports gold">▲ good</span>` : m.gold_effect < 0 ? `<span class="down" title="Weighs on gold">▼ bad</span>` : `<span class="muted">• flat</span>`;
+        return `<tr${m.symbol === "XAU/USD" ? ' style="font-weight:700"' : ""}><td>${RM_ICON[m.symbol] || "💱"}</td><td class="ev">${esc(m.name)} <span class="muted" style="font-weight:400">${esc(m.symbol)}</span></td>` +
+          `<td class="num">${fmt(m.price, dp(m.symbol))}</td><td class="num ${cls(m.change_pct)}">${m.change_pct === null ? "–" : signed(m.change_pct, 2) + "%"}</td><td>${eff}</td></tr>`;
+      }).join("") + `</tbody></table><div class="muted" style="font-size:11px;margin-top:4px">${esc(r.method)} A cross-check, not a trading signal.</div>`;
+  } catch (e) {
+    $("rmVerdict").className = "calwarn UNKNOWN";
+    $("rmVerdict").textContent = "Related markets unavailable – " + e.message;
+    $("rmList").innerHTML = "";
+  }
+}
+
 // ---------------------------------------------------------------- calendar grid
 let calEvents = [], calShowAll = false;
 const CAL_SHORT = [[/PCE/i, "Core PCE inflation"], [/Non-Farm/i, "NFP jobs report"], [/FOMC|Federal Funds/i, "Fed rate decision"],
@@ -1027,10 +1062,12 @@ loadTechnicals().then(loadAnalysis);
 loadSessions();
 loadNews();
 loadCalendar();
+loadRelated();
 loadJournal();
 setInterval(loadJournal, 60000);
 setInterval(loadNews, 30000);
 setInterval(loadCalendar, 60000);
+setInterval(loadRelated, 60000);
 setInterval(loadAnalysis, 60000);
 setInterval(loadPrice, 30000);
 setInterval(() => loadChart(false), 60000);
