@@ -110,6 +110,16 @@ ul.ev{margin:4px 0 10px;padding-left:18px;font-size:13px} ul.ev li{margin:2px 0}
 .lvls td,.lvls th{padding:6px 8px;border-bottom:1px solid #1a2027;text-align:right}
 .lvls td:first-child,.lvls th:first-child{text-align:left;color:var(--muted)}
 .tag{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:5px;letter-spacing:.05em}
+.light{border-radius:14px;padding:16px 18px;margin:12px 0;display:grid;gap:6px;border:2px solid var(--line);background:var(--panel)}
+.light .big{font-size:30px;font-weight:900;letter-spacing:.04em;line-height:1.1}
+.light .lv{font-family:var(--mono);font-size:15px}
+.light.BUY{background:#0f3a24;border-color:var(--up);color:#d6ffe9} .light.BUY .big{color:#3ff59a}
+.light.SELL{background:#4a1414;border-color:var(--down);color:#ffe0dc} .light.SELL .big{color:#ff6b6b}
+.light.RUN{opacity:.85} .light.READY{background:#3d2c0c;border-color:var(--warn)} .light.READY .big{color:var(--warn)}
+.light.WAIT .big{color:var(--muted)} .light.NEWS{background:#000;border-color:var(--down)} .light.NEWS .big{color:#fff}
+.light.flash{animation:flash 1s ease-in-out 6}
+@keyframes flash{50%{filter:brightness(1.8)}}
+.light button{justify-self:start;font:600 12px var(--sans);background:transparent;color:inherit;border:1px solid currentColor;border-radius:6px;padding:4px 10px;cursor:pointer;opacity:.8}
 .tag.BULLISH{background:#123524;color:var(--up)} .tag.BEARISH{background:#3a1717;color:var(--down)} .tag.NEUTRAL{background:#2a2414;color:var(--warn)}
 
 </style>
@@ -124,6 +134,14 @@ ul.ev{margin:4px 0 10px;padding-left:18px;font-size:13px} ul.ev li{margin:2px 0}
       <span class="muted" id="provider">–</span>
     </div>
   </header>
+
+  <section id="light" class="light WAIT" aria-live="assertive">
+    <div class="big" id="lBig">⏳ LOADING…</div>
+    <div id="lText"></div>
+    <div class="lv" id="lLevels"></div>
+    <div class="muted" style="font-size:11.5px" id="lNote">Signal light: 🟢 GREEN = BUY now · 🔴 RED = SELL now · 🟠 get ready · ⚪ wait. Educational – not financial advice. Check your broker's chart, use 0.01 lots, always set the stop.</div>
+    <button id="lAlert" type="button">🔔 Turn on sound alerts</button>
+  </section>
 
   <div id="warnings" class="warn" role="status"></div>
 
@@ -685,6 +703,7 @@ async function loadCalendar() {
   try {
     const c = await getJSON("/api/calendar");
     const w = c.warning;
+    lightCal = w.state; renderLight();
     const label = {NO_TRADE: "⛔ NO TRADE – ", CAUTION: "⚠ CAUTION – ", CLEAR: "✓ CLEAR – "}[w.state] || "";
     for (const id of ["calWarn", "pNewsWarn"]) {
       $(id).className = "calwarn " + w.state; $(id).textContent = label + w.text; $(id).style.display = "";
@@ -704,6 +723,72 @@ async function loadCalendar() {
   }
 }
 
+// ---------------------------------------------------------------- signal light (green / red)
+let lightJ = null, lightCal = null, alertsOn = false;
+try { alertsOn = localStorage.getItem("gpAlerts") === "1"; } catch (e) {}
+const FRESH_MIN = 45;     // a confirmed entry counts as "now" for 45 minutes
+function istToDate(s) {   // "20 Nov 2026, 14:30:00 IST" -> Date
+  if (!s) return null;
+  const d = new Date(s.replace(",", "").replace(" IST", " GMT+0530"));
+  return isNaN(d) ? null : d;
+}
+function beep() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [0, 0.35, 0.7].forEach(t => { const o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.value = 880;
+      o.connect(g); g.connect(ctx.destination); g.gain.setValueAtTime(0.25, ctx.currentTime + t);
+      o.start(ctx.currentTime + t); o.stop(ctx.currentTime + t + 0.22); });
+  } catch (e) {}
+  try { navigator.vibrate && navigator.vibrate([300, 150, 300, 150, 300]); } catch (e) {}
+}
+function announce(key, title, body) {
+  let seen = null;
+  try { seen = localStorage.getItem("gpLastSignal"); localStorage.setItem("gpLastSignal", key); } catch (e) {}
+  if (seen === key) return;                      // already alerted for this signal
+  $("light").classList.remove("flash"); void $("light").offsetWidth; $("light").classList.add("flash");
+  if (!alertsOn) return;
+  beep();
+  try { if (window.Notification && Notification.permission === "granted") new Notification(title, {body}); } catch (e) {}
+}
+function renderLight() {
+  const c = lightJ, el = $("light");
+  let cls = "WAIT", big = "⚪ WAIT", text = "No trade right now.", levels = "";
+  if (!c || c.state === "STARTING" || c.state === undefined) {
+    big = "⏳ CHECKING…"; text = "The signal journal is starting – about a minute after the server wakes up.";
+  } else if (c.state === "OPEN") {
+    const opened = istToDate(c.opened_ist), age = opened ? (Date.now() - opened) / 60000 : 999;
+    const buy = c.side === "BUY";
+    levels = `Entry ${fmt(c.entry)} · Stop ${fmt(c.stop)} · Target ${fmt(c.target)}`;
+    if (age <= FRESH_MIN) {
+      cls = c.side; big = buy ? "🟢 BUY NOW" : "🔴 SELL NOW";
+      text = `Strategy A confirmed a ${c.side} at the H1 close ${shortIst(c.opened_ist)} IST (${Math.max(0, Math.round(age))} min ago). Enter only near the entry price; skip it if price has already run far.`;
+      announce(`${c.side}|${c.opened_ist}`, big, levels);
+    } else {
+      cls = c.side + " RUN"; big = (buy ? "🟢 BUY" : "🔴 SELL") + " TRADE RUNNING";
+      text = `Confirmed at ${shortIst(c.opened_ist)} IST – too late to enter now. Do not chase; wait for the next signal.`;
+    }
+  } else if (c.state === "PENDING") {
+    const zone = `${fmt(c.zone[0])}–${fmt(c.zone[1])}`;
+    levels = `Zone ${zone} · Stop ${fmt(c.stop)}`;
+    if (c.touched) { cls = "READY"; big = `🟠 GET READY – ${c.side}`;
+      text = `Price reached the ${c.side} zone. The light turns ${c.side === "BUY" ? "GREEN" : "RED"} if the next H1 candle closes ${c.side === "BUY" ? "green" : "red"} (H1 candles close at :30 IST).`; }
+    else { big = `⚪ WAIT – ${c.side} setup`; text = `Waiting for price to come back to the ${c.side} zone. Expires ${shortIst(c.expires_ist)} IST.`; }
+  }
+  if (lightCal === "NO_TRADE" && !(c && c.state === "OPEN")) {
+    cls = "NEWS"; big = "⛔ NO TRADE – BIG NEWS"; text = "High-impact US news is close – see the Economic calendar. Wait until it has passed.";
+  }
+  el.className = "light " + cls + (el.classList.contains("flash") ? " flash" : "");
+  $("lBig").textContent = big; $("lText").textContent = text; $("lLevels").textContent = levels;
+  document.title = (cls === "BUY" ? "🟢 BUY – " : cls === "SELL" ? "🔴 SELL – " : "") + "GoldPulse AI";
+  $("lAlert").textContent = alertsOn ? "🔔 Sound alerts ON (tap to turn off)" : "🔔 Turn on sound alerts";
+}
+$("lAlert").onclick = async () => {
+  alertsOn = !alertsOn;
+  try { localStorage.setItem("gpAlerts", alertsOn ? "1" : "0"); } catch (e) {}
+  if (alertsOn) { beep(); try { window.Notification && Notification.permission === "default" && await Notification.requestPermission(); } catch (e) {} }
+  renderLight();
+};
+
 // ---------------------------------------------------------------- signal journal
 function journalLine(c) {
   if (!c) return "";
@@ -716,6 +801,7 @@ async function loadJournal() {
   try {
     const j = await getJSON("/api/journal");
     const c = j.current || {};
+    lightJ = c; renderLight();
     $("jMeta").textContent = `${j.strategy} · started ${shortIst(j.started_ist).slice(0, 5)} IST ${j.started_ist.slice(0, 11)} · checked ${shortIst(j.checked_ist)} IST`;
     $("jState").innerHTML = journalLine(c) || esc(c.state || "–");
     $("jStateDetail").textContent = j.error ? "Last check had a problem: " + j.error : (c.last_candle_ist ? `Last closed H1 candle: ${shortIst(c.last_candle_ist)} IST` : "");
