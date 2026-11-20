@@ -545,7 +545,32 @@ async function loadAnalysis() {
     $("pHeadline").textContent = p.headline;
     $("pReason").textContent = p.reason;
     $("pTiming").textContent = p.timing || "";
-    if (p.setup) {
+    const j = a.journal, gap = p.setup ? p.setup.spot_equivalent.basis_used : null;
+    const spot = x => (x === null || x === undefined || gap === null || gap === undefined) ? "–" : fmt(x - gap);
+    if (j && (j.state === "PENDING" || j.state === "OPEN")) {
+      // The journal holds the setup strategy A is really tracking: levels fixed at the signal candle,
+      // exactly as in the backtest. Show those instead of levels recalculated from the latest price.
+      const row = (k, c, q) => `<tr><td>${k}</td><td class="num">${c}</td><td class="num">${q}</td></tr>`;
+      const sell = j.side === "SELL";
+      const rows = j.state === "OPEN"
+        ? row("Entry (filled)", fmt(j.entry), spot(j.entry)) + row(`<span class="down">Stop-loss</span>`, fmt(j.stop), spot(j.stop))
+          + row(`<span class="up">Target (2R)</span>`, fmt(j.target), spot(j.target))
+        : row("Entry zone", fmt(j.zone[0]) + " – " + fmt(j.zone[1]), spot(j.zone[0]) + " – " + spot(j.zone[1]))
+          + row(`<span class="down">Stop-loss</span>`, fmt(j.stop), spot(j.stop))
+          + row(`<span class="up">Target</span>`, "2R from your entry", "");
+      $("pAction").textContent = j.side; $("pAction").className = "act " + j.side;
+      $("pHeadline").textContent = `${j.side} SETUP ${j.state === "OPEN" ? "OPEN" : "ACTIVE"} – signal from the H1 candle that closed ${shortIst(j.signal_ist || j.opened_ist)} IST (strategy A)`;
+      $("pSetup").innerHTML = `<table class="lvls"><thead><tr><th>Active setup · fixed levels</th><th>Chart series</th><th>≈ Spot (gap ${signed(gap)})</th></tr></thead><tbody>${rows}</tbody></table>
+        <div class="muted" style="font-size:11.5px;margin-top:4px">These levels were fixed when the signal formed and do not move – the same rule the backtest used. Re-check on your broker's chart.</div>`;
+      $("pEnterH").textContent = j.state === "OPEN" ? "Manage the trade" : "Enter only when";
+      $("pEnter").innerHTML = li(j.state === "OPEN"
+        ? [`Keep the stop at ${fmt(j.stop)} and the target at ${fmt(j.target)} – do not move them.`, "The journal marks the result when price reaches either level."]
+        : [`Price trades into the ${j.side} zone ${fmt(j.zone[0])}–${fmt(j.zone[1])}${j.touched ? " (already reached)" : ""}.`,
+           `Then an H1 candle CLOSES ${sell ? "below its open (red) at or below " + fmt(j.zone[1]) : "above its open (green) at or above " + fmt(j.zone[0])} – enter at that close.`,
+           `Stop-loss ${fmt(j.stop)}; target = 2 × your risk from the entry.`,
+           `Cancel if H1 trades ${sell ? "above" : "below"} ${fmt(j.stop)} first, or at ${shortIst(j.expires_ist)} IST if nothing happens.`,
+           "Risk per trade stays within your 1–2% rule at the stop distance shown."]);
+    } else if (p.setup) {
       const s = p.setup, sp = s.spot_equivalent;
       const row = (k, c, q) => `<tr><td>${k}</td><td class="num">${c}</td><td class="num">${q}</td></tr>`;
       $("pSetup").innerHTML = `<table class="lvls"><thead><tr><th>${s.timeframe}</th><th>Chart series</th><th>≈ Spot (gap ${signed(sp.basis_used)})</th></tr></thead><tbody>
