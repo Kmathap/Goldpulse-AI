@@ -27,7 +27,10 @@ from backend.timeutils import iso, ist_label
 DRIVER_RULES: list[tuple[str, int, str]] = [
     (r"rate[- ]cuts?|cuts? (interest )?rates|dovish|easing cycle|pause (rate[- ])?hikes|lower rates",
      2, "Points to lower US interest rates – cheaper to hold non-yielding gold, usually supportive."),
-    (r"rate[- ]hikes?|raises? (interest )?rates|hawkish|higher for longer|tighten|bps (rate )?hike|(firmer|rising|higher) (fed )?rate bets",
+    (r"(?<!pause )(?<!pause rate )(?<!pause rate-)(?<!halt )(?<!end )(?<!no )rate[- ]hikes?|raises? (interest )?rates|rate increases?|hawkish|higher for longer|tighten"
+     r"|(?<!pause )(?<!halt )(?<!no )\b(basis[- ]points?|percentage[- ]points?|quarter[- ]points?|half[- ]points?|bps?|points?) (rate )?hikes?"
+     r"|(fed|fomc|federal reserve|central bank|ecb|boj)\b[^.]{0,60}?(?<!pause )(?<!pause rate )(?<!halt )(?<!no )(?<!no rate )(?<!end )\bhikes?\b(?! (its |their )?gold)"
+     r"|(firmer|rising|higher) (fed )?rate bets",
      -2, "Points to higher or longer-high US rates – raises the cost of holding gold, usually negative."),
     (r"(weaker|softer) dollar|(dollar|dxy|usd index)[^.]{0,40}\b(falls|slips|drops|weakens|declines|slides|eases|turn(s|ing)? lower|lower)\b",
      1, "Weaker US dollar – gold becomes cheaper for non-USD buyers, usually supportive."),
