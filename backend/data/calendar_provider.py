@@ -10,7 +10,9 @@ events and turns them into a simple trade warning:
 The feed only covers the current week (Sunday–Saturday, New York time) and asks
 users not to download it more than a few times per hour, so it is cached for
 1 hour and a failed download is not retried for 10 minutes. The last good copy
-is kept and shown if the feed is temporarily unavailable.
+is kept and shown if the feed is temporarily unavailable. If the feed has never
+loaded (it often refuses shared cloud servers), the built-in official schedule in
+backend/data/us_schedule.py is used instead, so the warning still works.
 """
 from __future__ import annotations
 
@@ -20,6 +22,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable
 
 from backend.data.base import DataUnavailableError
+from backend.data import us_schedule
 from backend.data.http import HttpGet, make_http_get
 from backend.timeutils import ist_label, iso
 
@@ -85,8 +88,10 @@ class CalendarProvider:
         with self._lock:
             self._refresh()
             events, fetched_at, error = self._events, self._fetched_at, self._last_error
+        source, fallback = SOURCE, False
         if events is None:
-            raise DataUnavailableError(f"Economic calendar unavailable: {error or 'not loaded yet'}")
+            events = [p for p in (_parse(e) for e in us_schedule.as_feed()) if p]
+            source, fallback = us_schedule.SOURCE, True
 
         now_ts = self._clock()
         now = datetime.fromtimestamp(now_ts, tz=timezone.utc)
@@ -122,11 +127,19 @@ class CalendarProvider:
                        + (f" Next: {nxt['title']} at {nxt['time_ist']}." if nxt else
                           " No more high-impact USD events this week (next week's calendar appears on Sunday).")}
 
+        if fallback:
+            stale = ("Live calendar feed unavailable, so the built-in official dates are shown (high-impact USD events only, "
+                     "no forecasts)." + (f" Feed error: {error}" if error else ""))
+            if now.date().isoformat() > us_schedule.LAST_DATE:
+                stale += " The built-in list has ended – update backend/data/us_schedule.py."
+        else:
+            stale = f"Showing the last good copy – latest download failed: {error}" if error else None
         return {
-            "source": SOURCE,
+            "source": source,
+            "fallback": fallback,
             "fetched_at_utc": iso(datetime.fromtimestamp(fetched_at, tz=timezone.utc)) if fetched_at else None,
             "fetched_at_ist": ist_label(datetime.fromtimestamp(fetched_at, tz=timezone.utc)) if fetched_at else None,
-            "stale_note": f"Showing the last good copy – latest download failed: {error}" if error else None,
+            "stale_note": stale,
             "warning": warning,
             "rules": f"NO TRADE from {BLOCK_BEFORE_MIN} min before to {BLOCK_AFTER_MIN} min after a high-impact USD event; "
                      f"CAUTION within {CAUTION_BEFORE_MIN // 60} h before one.",
