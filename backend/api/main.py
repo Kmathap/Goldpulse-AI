@@ -28,7 +28,7 @@ def build_provider(settings: Settings):
 
 
 def create_app(service: MarketService | None = None, settings: Settings | None = None,
-               start_journal: bool | None = None, calendar=None) -> FastAPI:
+               start_journal: bool | None = None, calendar=None, related=None) -> FastAPI:
     settings = settings or load_settings()
     if start_journal is None:
         start_journal = service is None          # real server: yes; tests: no
@@ -40,6 +40,10 @@ def create_app(service: MarketService | None = None, settings: Settings | None =
             from backend.data.calendar_provider import CalendarProvider
 
             calendar = CalendarProvider()
+        if related is None:
+            from backend.data.related_markets import RelatedMarkets
+
+            related = RelatedMarkets(settings.twelvedata_api_key)
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
@@ -150,6 +154,15 @@ def create_app(service: MarketService | None = None, settings: Settings | None =
         except DataUnavailableError as exc:
             return unavailable(exc)
 
+    @app.get("/api/related")
+    def related_markets():
+        if related is None:
+            return unavailable(DataUnavailableError("Related markets are not configured."))
+        try:
+            return related.payload()
+        except DataUnavailableError as exc:
+            return unavailable(exc)
+
     @app.get("/api/sessions")
     def sessions():
         try:
@@ -170,7 +183,7 @@ def create_app(service: MarketService | None = None, settings: Settings | None =
             "app": "GoldPulse AI",
             "phase": 3,
             "docs": "/docs",
-            "endpoints": ["/api/health", "/api/price", "/api/candles/{tf}", "/api/technicals", "/api/technicals/{tf}", "/api/sessions", "/api/analysis", "/api/news", "/api/calendar", "/api/journal"],
+            "endpoints": ["/api/health", "/api/price", "/api/candles/{tf}", "/api/technicals", "/api/technicals/{tf}", "/api/sessions", "/api/analysis", "/api/news", "/api/calendar", "/api/related", "/api/journal"],
             "timeframes": list(TIMEFRAMES),
         }
 
