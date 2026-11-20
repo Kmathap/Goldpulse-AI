@@ -93,6 +93,13 @@ footer{color:var(--muted);font-size:12px;border-top:1px solid var(--line);paddin
 .calrow.past{opacity:.5}
 .calrow .fc{font-size:11.5px;color:var(--muted);text-align:right;white-space:nowrap}
 @media (max-width:600px){.calrow{grid-template-columns:78px minmax(0,1fr)} .calrow .fc{grid-column:2;text-align:left}}
+.caltbl{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}
+.caltbl th{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);text-align:left;padding:5px 8px;border-bottom:1px solid var(--line)}
+.caltbl td{padding:6px 8px;border-bottom:1px solid #1a2027;white-space:nowrap;vertical-align:middle}
+.caltbl td.ev{white-space:normal;font-weight:600}
+.caltbl tr.soon td{background:#2a2414} .caltbl tr.past td{opacity:.45}
+.caltbl .in{color:var(--muted);font-family:var(--mono);font-size:12px}
+.calmore{margin-top:6px;font:600 12px var(--sans);color:var(--gold);background:transparent;border:1px solid var(--gold-dim);border-radius:6px;padding:3px 10px;cursor:pointer}
 .newsfilter{display:flex;gap:4px;flex-wrap:wrap}
 .newsfilter button{font:600 11px var(--sans);color:var(--muted);background:transparent;border:1px solid var(--line);border-radius:6px;padding:3px 8px;cursor:pointer}
 .newsfilter button.on{color:#111;background:var(--gold);border-color:var(--gold)}
@@ -708,19 +715,40 @@ async function loadCalendar() {
     for (const id of ["calWarn", "pNewsWarn"]) {
       $(id).className = "calwarn " + w.state; $(id).textContent = label + w.text; $(id).style.display = "";
     }
-    $("calRules").textContent = c.rules + (c.stale_note ? " · " + c.stale_note : "");
+    $("calRules").textContent = "⛔ No trade 30 min before → 15 min after a 🔴 event · ⚠ caution 2 h before." + (c.fallback ? " Using official US release dates (live feed unavailable) – no forecasts." : c.stale_note ? " Showing last saved copy." : "");
     $("calMeta").textContent = `${c.source} · checked ${shortIst(c.fetched_at_ist)} IST`;
-    const rows = c.events.slice(0, 30);
-    $("calList").innerHTML = rows.length ? rows.map(e => `<div class="calrow ${e.minutes_until < 0 ? "past" : ""}">
-        <div class="num">${esc(e.time_ist.replace(/ \d{4},/, ",").replace(/:\d\d IST$/, ""))}<div class="muted" style="font-size:11px">${calWhen(e.minutes_until)}</div></div>
-        <div><span class="chip ${e.impact}">${e.impact}</span> ${e.key_event ? "<b>" : ""}${esc(e.title)}${e.key_event ? "</b>" : ""}</div>
-        <div class="fc">${e.forecast ? "Fcst " + esc(e.forecast) : ""}${e.previous ? " · Prev " + esc(e.previous) : ""}</div>
-      </div>`).join("") : `<div class="muted" style="padding:8px 0">No high or medium-impact USD events left this week.</div>`;
+    calEvents = c.events; renderCalList();
   } catch (e) {
     $("calWarn").className = "calwarn CAUTION";
     $("calWarn").textContent = "Calendar unavailable – check ForexFactory before trading. (" + e.message + ")";
     $("pNewsWarn").style.display = "none";
   }
+}
+
+// ---------------------------------------------------------------- calendar grid
+let calEvents = [], calShowAll = false;
+const CAL_SHORT = [[/PCE/i, "Core PCE inflation"], [/Non-Farm/i, "NFP jobs report"], [/FOMC|Federal Funds/i, "Fed rate decision"],
+  [/CPI/i, "CPI inflation"], [/PPI/i, "PPI inflation"], [/GDP/i, "GDP"], [/Unemployment Claims/i, "Jobless claims"],
+  [/Retail Sales/i, "Retail sales"], [/ISM/i, "ISM business survey"], [/JOLTS/i, "JOLTS job openings"], [/Fed Chair|Powell|Warsh/i, "Fed Chair speaks"]];
+function calShort(t) {
+  const m = (t.match(/\((\w{3})\)\s*$/) || [])[1];
+  for (const [re, name] of CAL_SHORT) if (re.test(t)) return name + (m ? ` (${m})` : "");
+  return t;
+}
+function renderCalList() {
+  const rows = calEvents.filter(e => e.minutes_until >= -60);
+  const shown = calShowAll ? rows.slice(0, 30) : rows.slice(0, 6);
+  if (!rows.length) { $("calList").innerHTML = `<div class="muted" style="padding:8px 0">No high or medium-impact USD events coming up.</div>`; return; }
+  $("calList").innerHTML = `<table class="caltbl"><thead><tr><th></th><th>Date</th><th>Time IST</th><th>Event</th><th>In</th></tr></thead><tbody>` +
+    shown.map(e => {
+      const d = e.time_ist.match(/^(\d+ \w+)/)[1], t = e.time_ist.match(/(\d\d:\d\d):\d\d IST$/)[1];
+      const cls = e.minutes_until < 0 ? "past" : (e.impact === "High" && e.minutes_until <= 120 ? "soon" : "");
+      const fc = e.forecast ? ` <span class="muted" style="font-weight:400">· F ${esc(e.forecast)}${e.previous ? " · P " + esc(e.previous) : ""}</span>` : "";
+      return `<tr class="${cls}"><td title="${e.impact} impact">${e.impact === "High" ? "🔴" : "🟠"}</td><td class="num">${esc(d)}</td><td class="num">${t}</td>` +
+        `<td class="ev" title="${esc(e.title)}">${esc(calShort(e.title))}${fc}</td><td class="in">${calWhen(e.minutes_until)}</td></tr>`;
+    }).join("") + `</tbody></table>` +
+    (rows.length > 6 ? `<button class="calmore" type="button" onclick="calShowAll=!calShowAll;renderCalList()">${calShowAll ? "Show less" : `Show all ${Math.min(rows.length, 30)}`}</button>` : "") +
+    `<div class="muted" style="font-size:11px;margin-top:4px">🔴 high impact · 🟠 medium · highlighted = within 2 hours</div>`;
 }
 
 // ---------------------------------------------------------------- signal light (green / red)
